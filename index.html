@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dilema Monty Hall</title>
+  <style>
+    :root{--bg:#0f172a;--card:#111827;--muted:#9ca3af;--text:#e5e7eb;--accent:#22d3ee;--ok:#22c55e;--warn:#f59e0b;--bad:#ef4444}
+    *{box-sizing:border-box} html,body{height:100%}
+    body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial; background:linear-gradient(180deg,#0b1224,#0f172a 60%); color:var(--text)}
+    .container{max-width:1100px;margin:0 auto;padding:24px}
+    .card{background:rgba(17,24,39,.85);backdrop-filter:saturate(1.2) blur(4px);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:20px}
+    .title{font-size:28px;font-weight:800;margin:0 0 8px}
+    .btn{appearance:none;border:none;border-radius:12px;padding:12px 16px;background:var(--accent);color:#001018;font-weight:700;cursor:pointer;transition:.2s;box-shadow:0 8px 18px rgba(34,211,238,.25)}
+    .btn:hover{transform:translateY(-1px)}
+    .btn.secondary{background:#334155;color:#e2e8f0}
+    .input{width:100%;padding:12px;border-radius:12px;border:1px solid #293244;background:#0b1224;color:var(--text)}
+    .grid{display:grid;gap:12px}
+    .grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .slot{border:1px dashed #334155;border-radius:14px;padding:14px;min-height:138px;display:flex;flex-direction:column;gap:8px}
+    .slot.filled{border-style:solid;background:#0b1224}
+    .muted{color:var(--muted)}
+    .toast{position:fixed;bottom:20px;right:20px;background:#22c55e;color:#fff;padding:10px 16px;border-radius:8px;opacity:0;transition:.4s}
+    .toast.show{opacity:1}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="app"></div>
+    <div id="toast" class="toast">¡Copiado!</div>
+  </div>
+
+<script>
+(function(){
+  const ADMIN_PASS = "9090"; 
+  const DEFAULT_EXPIRY_DAYS = 30;
+  const MAX_GROUPS = 5;
+
+  const S = {
+    route: route(),
+    admin: { logged: false, links: loadLinks() },
+    game: null
+  };
+
+  function route(){
+    const p = new URLSearchParams(location.search);
+    const hash = location.hash.replace(/^#\//,'');
+    const path = hash || (location.pathname === '/' ? '' : location.pathname.replace(/^\//,''));
+    return { path, p };
+  }
+  window.addEventListener('hashchange', ()=>{ S.route = route(); render(); });
+
+  function uid(n=8){return Array.from(crypto.getRandomValues(new Uint8Array(n))).map(b=>b.toString(16).padStart(2,'0')).join('').slice(0,n)}
+  function today(){ return new Date() }
+  function addDays(d, n){ const x = new Date(d); x.setDate(x.getDate()+n); return x }
+
+  function loadLinks(){ try{ return JSON.parse(localStorage.getItem('links')||'[]') }catch{ return [] } }
+  function saveLinks(){ localStorage.setItem('links', JSON.stringify(S.admin.links)) }
+
+  function createLink(client, days=DEFAULT_EXPIRY_DAYS, codes=[]){
+    const token = uid(12);
+    const createdAt = today().toISOString();
+    const expiresAt = addDays(today(), days).toISOString();
+    if(codes.length===0){ codes = Array.from({length:MAX_GROUPS}, ()=>uid(6).toUpperCase()); }
+    const link = { token, client, createdAt, expiresAt, status: 'pending', codes: codes.map(c=>({code:c,used:false})) };
+    S.admin.links.unshift(link);
+    saveLinks();
+    return link;
+  }
+  function findLink(token){ return S.admin.links.find(l => l.token===token) }
+
+  function newGameState(token){
+    return {
+      token,
+      client: (findLink(token)?.client)||'Cliente',
+      step: 'landing',
+      groups: Array.from({length:MAX_GROUPS},()=>({name:'', code:'', joined:false})),
+      joinedCount: 0
+    }
+  }
+
+  function toast(msg){
+    const t=document.getElementById('toast');
+    t.textContent=msg; t.classList.add('show');
+    setTimeout(()=>t.classList.remove('show'),2000);
+  }
+
+  function render(){
+    const app = document.getElementById('app');
+    const { path, p } = S.route;
+    if(path === 'admin') return app.replaceChildren(viewAdmin());
+    if(path === 'game' || p.get('t')) return app.replaceChildren(viewGame());
+    app.replaceChildren(viewHome());
+  }
+
+  function viewHome(){
+    return el('div',{class:'card'},[
+      el('h1',{class:'title'},'Dilema Monty Hall'),
+      el('button',{class:'btn',onclick:()=>location.hash='#/admin'},'Ir al Admin')
+    ]);
+  }
+
+  function viewAdmin(){
+    const c = el('div',{class:'card'});
+    c.append(el('h2',{class:'title'},'Módulo Administrativo'));
+
+    if(!S.admin.logged){
+      const pass = input('Contraseña', 'password');
+      const btn = el('button',{class:'btn',onclick:()=>{
+        if(pass.value===ADMIN_PASS){ S.admin.logged=true; render(); }
+        else alert('Contraseña incorrecta');
+      }},'Ingresar');
+      c.append(pass,btn);
+      return c;
+    }
+
+    const name = input('Cliente / Empresa');
+    const days = input('Duración (días)', 'number', DEFAULT_EXPIRY_DAYS);
+    const codesArea = document.createElement('textarea');
+    codesArea.className = 'input';
+    codesArea.rows = 3;
+    codesArea.placeholder = 'Códigos válidos (coma o enter)';
+
+    const btnCreate = el('button',{class:'btn',onclick:()=>{
+      const n = (name.value||'Cliente');
+      const d = Math.max(1, parseInt(days.value||DEFAULT_EXPIRY_DAYS));
+      let codes = codesArea.value.split(/[\n,]+/).map(s=>s.trim()).filter(s=>s);
+      const link = createLink(n,d,codes);
+      render();
+      const url = `${location.origin}${location.pathname}?t=${link.token}#/game`;
+      navigator.clipboard.writeText(url).then(()=>toast("Link copiado")).catch(()=>{
+        const tmp=document.createElement("textarea");
+        tmp.value=url; document.body.appendChild(tmp); tmp.select(); document.execCommand("copy"); document.body.removeChild(tmp); toast("Link copiado");
+      });
+    }},'Generar link');
+
+    c.append(name,days,codesArea,btnCreate);
+
+    S.admin.links.forEach(l=>{
+      const url = `${location.origin}${location.pathname}?t=${l.token}#/game`;
+      const box = el('div',{class:'slot filled'},[
+        el('div',{},`${l.client} – ${l.status}`),
+        el('div',{class:'muted'},`Códigos: ${l.codes.map(c=>c.code+(c.used?'(usado)':'')).join(', ')}`),
+        el('a',{href:url,target:'_blank'},url),
+        el('button',{class:'btn secondary',onclick:()=>{
+          navigator.clipboard.writeText(url).then(()=>toast("Link copiado")).catch(()=>{
+            const tmp=document.createElement("textarea");
+            tmp.value=url; document.body.appendChild(tmp); tmp.select(); document.execCommand("copy"); document.body.removeChild(tmp); toast("Link copiado");
+          });
+        }},'Copiar link')
+      ]);
+      c.append(box);
+    });
+
+    return c;
+  }
+
+  function viewGame(){
+    const token = S.route.p.get('t');
+    if(!token) return el('div',{class:'card'},'Falta token');
+    const link = findLink(token);
+    if(!link) return el('div',{class:'card'},'Link inválido');
+
+    if(!S.game || S.game.token!==token) S.game=newGameState(token);
+    const g=S.game;
+
+    if(g.step==='landing') return el('div',{class:'card'},[
+      el('h2',{},`Bienvenido ${g.client}`),
+      el('button',{class:'btn',onclick:()=>{g.step='slots';render();}},'Iniciar Partida')
+    ]);
+
+    if(g.step==='slots'){
+      const grid = el('div',{class:'grid grid-3'});
+      g.groups.forEach((gp,idx)=>{
+        if(gp.joined){
+          grid.append(el('div',{class:'slot filled'},[
+            el('strong',{},gp.name),
+            el('div',{class:'muted'},gp.code)
+          ]));
+        }else{
+          const n=input('Nombre equipo');
+          const c=input('Código asignado');
+          const btn=el('button',{class:'btn',onclick:()=>{
+            const codeObj = link.codes.find(cd=>cd.code===c.value && !cd.used);
+            if(!n.value||!c.value) return alert('Complete campos');
+            if(!codeObj) return alert('Código inválido o usado');
+            gp.name=n.value; gp.code=c.value; gp.joined=true;
+            codeObj.used=true;
+            g.joinedCount=g.groups.filter(x=>x.joined).length;
+            render();
+          }},'Entrar');
+          grid.append(el('div',{class:'slot'},[n,c,btn]));
+        }
+      });
+      const canStart=g.joinedCount>=MAX_GROUPS;
+      return el('div',{class:'card'},[
+        el('h2',{},`Equipos dentro ${g.joinedCount}/${MAX_GROUPS}`),
+        grid,
+        el('button',{class:'btn',disabled:!canStart,onclick:()=>{g.step='r0';render();}},canStart?'Comenzar Ronda 0':'Esperando…')
+      ]);
+    }
+
+    return el('div',{class:'card'},'Juego en desarrollo…');
+  }
+
+  function el(tag, props={}, children){
+    const node=document.createElement(tag);
+    for(const k in props){ if(k==='class') node.className=props[k]; else if(k.startsWith('on')) node[k]=props[k]; else node.setAttribute(k, props[k]); }
+    if(children!==undefined){
+      const arr=Array.isArray(children)?children:[children];
+      arr.forEach(ch=>node.append(ch.nodeType?ch:document.createTextNode(ch)));
+    }
+    return node;
+  }
+  function input(ph,type='text',val=''){const i=el('input',{class:'input',placeholder:ph,type});i.value=val;return i;}
+
+  render();
+})();
+</script>
+</body>
+</html>
