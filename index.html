@@ -1,12 +1,123 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>Prueba GitHub Pages</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dilema Monty Hall</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f0f1f2;
+      color: #333;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 24px;
+      text-align: center;
+    }
+    .title {
+      font-size: 28px;
+      font-weight: bold;
+      margin-bottom: 20px;
+      color: #111827;
+    }
+    .doors {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin: 30px 0;
+    }
+    .door {
+      width: 120px;
+      height: 200px;
+      background: #374151;
+      color: white;
+      font-size: 20px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: transform 0.2s, background 0.2s;
+    }
+    .door:hover {
+      transform: scale(1.05);
+      background: #1f2937;
+    }
+    .btn {
+      margin-top: 20px;
+      padding: 12px 20px;
+      border: none;
+      border-radius: 8px;
+      background: #2563eb;
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn:hover {
+      background: #1d4ed8;
+    }
+    .result {
+      margin-top: 30px;
+      font-size: 20px;
+      font-weight: bold;
+      color: #059669;
+    }
+  </style>
 </head>
 <body>
-  <h1 style="text-align:center; margin-top:50px; color:green;">
-    ✅ GitHub Pages está funcionando
-  </h1>
+  <div class="container">
+    <h1 class="title">🎲 Simulador Dilema Monty Hall</h1>
+    <p>Elegí una puerta y probá si cambiar aumenta tus chances de ganar.</p>
+
+    <div class="doors">
+      <div class="door" onclick="chooseDoor(1)">🚪1</div>
+      <div class="door" onclick="chooseDoor(2)">🚪2</div>
+      <div class="door" onclick="chooseDoor(3)">🚪3</div>
+    </div>
+
+    <button class="btn" onclick="simulateSwitch()">Simular con cambio</button>
+    <button class="btn" onclick="simulateStay()">Simular sin cambio</button>
+
+    <div id="result" class="result"></div>
+  </div>
+
+  <script>
+    let chosenDoor = null;
+
+    function chooseDoor(num) {
+      chosenDoor = num;
+      document.getElementById("result").innerText = `Elegiste la puerta ${num}`;
+    }
+
+    // 🚨 Reemplazá la URL por la de tu Apps Script
+    const API_URL = "TU_URL_DE_APPS_SCRIPT";
+
+    async function simulateSwitch() {
+      if (!chosenDoor) {
+        alert("Primero elegí una puerta 🚪");
+        return;
+      }
+      const res = await fetch(API_URL + "?mode=switch&choice=" + chosenDoor);
+      const data = await res.json();
+      document.getElementById("result").innerText =
+        `Con cambio: ${data.message}`;
+    }
+
+    async function simulateStay() {
+      if (!chosenDoor) {
+        alert("Primero elegí una puerta 🚪");
+        return;
+      }
+      const res = await fetch(API_URL + "?mode=stay&choice=" + chosenDoor);
+      const data = await res.json();
+      document.getElementById("result").innerText =
+        `Sin cambio: ${data.message}`;
+    }
+  </script>
 </body>
 </html>
