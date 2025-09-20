@@ -25,18 +25,18 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="card">
-      <h1>Simulador Dilema Monty Hall — Administrador</h1>
-      <p class="small">Ingresá tu clave maestra para acceder al panel de administrador.</p>
+    <!-- ADMIN PRINCIPAL -->
+    <div id="adminLogin" class="card">
+      <h1>Simulador Dilema Monty Hall — Admin Principal</h1>
+      <p class="small">Ingresá tu clave maestra para acceder al panel.</p>
       <div class="row">
         <input id="masterKey" placeholder="Clave maestra" />
         <button onclick="adminLogin()">Entrar</button>
-        <button class="ghost" onclick="showPublic()">Entrar como Cliente/Invitado</button>
       </div>
       <p class="small">Clave maestra por defecto: <strong>9090</strong></p>
     </div>
 
-    <!-- ADMIN PANEL -->
+    <!-- PANEL ADMIN -->
     <div id="adminPanel" class="card" style="display:none">
       <h2>Panel de Administrador</h2>
       <div class="row" style="margin-bottom:10px;">
@@ -44,28 +44,24 @@
         <input id="qtyPlayers" type="number" min="1" max="200" value="5" style="width:110px" />
         <label class="small">Códigos participantes</label>
       </div>
-
       <div class="row" style="margin-bottom:10px;">
         <label class="small">Duración (días)</label>
         <input id="daysValid" type="number" min="1" value="30" style="width:90px" />
         <button onclick="createGame()">Generar nueva partida</button>
       </div>
-
       <div style="margin-top:18px">
         <h3>Partidas generadas</h3>
         <div id="gamesList" class="links-list"></div>
       </div>
     </div>
 
-    <!-- PUBLIC / PLAYER ENTRY -->
+    <!-- PANEL CLIENTE/JUGADOR -->
     <div id="playerPanel" class="card" style="display:none">
       <h2>Acceso a partida</h2>
-      <div id="playerIntro" class="small muted">Ingresá el código que te dio el instructor o abrí el link que recibiste.</div>
       <div style="margin-top:12px">
-        <input id="playerCode" placeholder="Código participante" />
+        <input id="playerCode" placeholder="Código participante o instructor" />
         <button onclick="loginPlayer()">Entrar</button>
       </div>
-
       <div id="gameArea" style="display:none;margin-top:14px">
         <h3 id="gameTitle"></h3>
         <div class="doors" id="doorsWrap"></div>
@@ -76,192 +72,113 @@
         <div id="playResult" class="result"></div>
       </div>
     </div>
-
   </div>
 
 <script>
 const MASTER_KEY = "9090";
-const API_URL = "https://script.google.com/macros/s/AKfycbxFiB-ADDPpiZsXBU0nGjFtS2In7IqvFewrJEZdJueQjsz5LyvVNvgMnR4a_uRfOY4/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbyB3go-c9babrB9TIpCigWDKOEozb5dhRrEottoJAlRr64FiVKXhdki0Y6-O_UeRHg/exec";
 const STORAGE_KEY = "mh_games_v1";
 
 /* --- UTIL --- */
 function randCode(len=6){
   const chars = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-  let s="";
-  for(let i=0;i<len;i++) s+=chars.charAt(Math.floor(Math.random()*chars.length));
+  let s=""; for(let i=0;i<len;i++) s+=chars.charAt(Math.floor(Math.random()*chars.length));
   return s;
 }
 function nowIso(){ return new Date().toISOString(); }
 function daysFromNow(days){ return new Date(Date.now()+days*24*3600*1000).toISOString(); }
 
-/* --- STORAGE LOCAL --- */
-function loadGamesLocal(){
-  const raw = localStorage.getItem(STORAGE_KEY);
-  return raw ? JSON.parse(raw) : {};
-}
-function saveGamesLocal(obj){
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
-}
+/* --- LOCAL --- */
+function loadGamesLocal(){const raw=localStorage.getItem(STORAGE_KEY);return raw?JSON.parse(raw):{};}
+function saveGamesLocal(obj){localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));}
 
-/* --- REMOTE SAVE --- */
+/* --- REMOTO --- */
 async function saveToSheet(payload){
-  try {
-    const res = await fetch(API_URL, {
-      method:"POST",
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify(payload)
-    });
+  try{
+    const res = await fetch(API_URL,{method:"POST",headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     return await res.json();
-  } catch(err){
-    console.error("Error guardando en sheet:", err);
-    return {ok:false, error:err.message};
-  }
+  }catch(err){console.error(err);return {ok:false,error:err.message};}
 }
 
 /* --- ADMIN --- */
 function adminLogin(){
-  const key = document.getElementById("masterKey").value.trim();
+  const key=document.getElementById("masterKey").value.trim();
   if(key===MASTER_KEY){
+    document.getElementById("adminLogin").style.display="none";
     document.getElementById("adminPanel").style.display="block";
-    document.getElementById("playerPanel").style.display="none";
     refreshGamesList();
-  } else {
-    alert("Clave incorrecta");
-  }
+  } else alert("Clave incorrecta");
 }
-function showPublic(){
-  document.getElementById("adminPanel").style.display="none";
-  document.getElementById("playerPanel").style.display="block";
-}
-
-/* --- CREATE GAME --- */
 async function createGame(){
-  const clientName = (document.getElementById("clientName").value||"").trim();
-  const qty = parseInt(document.getElementById("qtyPlayers").value||5);
-  const days = parseInt(document.getElementById("daysValid").value||30);
+  const clientName=(document.getElementById("clientName").value||"").trim();
+  const qty=parseInt(document.getElementById("qtyPlayers").value||5);
+  const days=parseInt(document.getElementById("daysValid").value||30);
   if(!clientName) return alert("Ingresá nombre del cliente");
-
-  const gameCode = randCode(6);
-  const instructorCode = randCode(6);
-  const playerCodes = {};
-  for(let i=0;i<qty;i++) playerCodes[randCode(6)] = {used:false};
-
-  const g = {
-    gameCode, clientName,
-    createdAt: nowIso(),
-    expiresAt: daysFromNow(days),
-    instructorCode, playerCodes
-  };
-
-  // local
-  const all = loadGamesLocal(); all[gameCode]=g; saveGamesLocal(all);
-
-  // remoto
-  await saveToSheet({
-    action:"save_game",
-    FechaRegistro: nowIso(),
-    Accion: "SAVE_GAME",
-    CodigoJuego: gameCode,
-    Cliente: clientName,
-    FechaCreacion: g.createdAt,
-    FechaExpira: g.expiresAt,
-    CodigoInstructor: instructorCode,
-    Resultado: JSON.stringify(playerCodes)
-  });
-
+  const gameCode=randCode(6), instructorCode=randCode(6);
+  const playerCodes={}; for(let i=0;i<qty;i++) playerCodes[randCode(6)]={used:false};
+  const g={gameCode,clientName,createdAt:nowIso(),expiresAt:daysFromNow(days),instructorCode,playerCodes};
+  const all=loadGamesLocal();all[gameCode]=g;saveGamesLocal(all);
+  await saveToSheet({action:"save_game",Accion:"SAVE_GAME",Rol:"Admin",CodigoJuego:gameCode,Cliente:clientName,FechaCreacion:g.createdAt,FechaExpira:g.expiresAt,CodigoInstructor:instructorCode,Resultado:JSON.stringify(playerCodes),FechaRegistro:nowIso()});
   refreshGamesList();
-  alert("Partida creada y guardada en la hoja.");
+  alert("Partida creada. Copiá el link y envialo al cliente.");
 }
-
-/* --- LIST GAMES --- */
 function refreshGamesList(){
-  const cont=document.getElementById("gamesList");
-  cont.innerHTML="";
-  const all = loadGamesLocal();
+  const cont=document.getElementById("gamesList");cont.innerHTML="";
+  const all=loadGamesLocal();
   Object.values(all).forEach(g=>{
-    const link = `${window.location.origin}${window.location.pathname}?game=${g.gameCode}`;
-    const div=document.createElement("div");
-    div.className="link-item";
-    div.innerHTML = `<div><strong>${g.clientName}</strong><br>
-    <span class="small muted">Juego: ${g.gameCode} · Expira: ${g.expiresAt}</span></div>`;
-    const b1=document.createElement("button");
-    b1.textContent="Copiar link";
-    b1.onclick=()=>{navigator.clipboard.writeText(link); alert("Link copiado");};
-    div.appendChild(b1);
-    cont.appendChild(div);
+    const link=`${window.location.origin}${window.location.pathname}?game=${g.gameCode}`;
+    const div=document.createElement("div");div.className="link-item";
+    div.innerHTML=`<div><strong>${g.clientName}</strong><br><span class="small muted">Juego: ${g.gameCode}</span></div>`;
+    const b1=document.createElement("button");b1.textContent="Copiar link";b1.onclick=()=>{navigator.clipboard.writeText(link);alert("Link copiado")};
+    div.appendChild(b1);cont.appendChild(div);
   });
 }
 
-/* --- PLAYER FLOW --- */
+/* --- PLAYER --- */
 async function loginPlayer(){
-  const code = (document.getElementById("playerCode").value||"").trim();
+  const code=(document.getElementById("playerCode").value||"").trim();
   if(!code) return alert("Ingresá un código");
-
-  const all=loadGamesLocal();
-  let found=null, role="participant";
+  const all=loadGamesLocal();let found=null,role="Jugador",playerKey=null;
   for(const g of Object.values(all)){
-    if(g.instructorCode===code){found=g; role="instructor"; break;}
-    if(g.playerCodes[code]!==undefined){found=g; role="participant"; break;}
+    if(g.instructorCode===code){found=g;role="Instructor";break;}
+    if(g.playerCodes[code]!==undefined){found=g;role="Jugador";playerKey=code;break;}
   }
-  if(!found) return alert("Código no válido");
-
-  if(role==="participant" && found.playerCodes[code].used) return alert("Código ya usado");
-
-  if(role==="participant"){
-    found.playerCodes[code].used=true;
-    saveGamesLocal(all);
-    await saveToSheet({
-      action:"mark_used",
-      FechaRegistro: nowIso(),
-      Accion: "USED",
-      CodigoJuego: found.gameCode,
-      Cliente: found.clientName,
-      CodigoInstructor: found.instructorCode,
-      CodigoJugador: code,
-      Estado: "usado"
-    });
+  if(!found) return alert("Código inválido");
+  if(role==="Jugador" && found.playerCodes[playerKey].used) return alert("Código ya usado");
+  if(role==="Jugador"){
+    found.playerCodes[playerKey].used=true;saveGamesLocal(all);
+    await saveToSheet({action:"mark_used",Accion:"USED",Rol:"Jugador",CodigoJuego:found.gameCode,Cliente:found.clientName,CodigoInstructor:found.instructorCode,CodigoJugador:playerKey,Estado:"usado",FechaRegistro:nowIso()});
   }
-
-  startGame(found, role);
+  if(role==="Instructor"){
+    await saveToSheet({action:"instructor_view",Accion:"VIEW",Rol:"Instructor",CodigoJuego:found.gameCode,Cliente:found.clientName,CodigoInstructor:found.instructorCode,FechaRegistro:nowIso()});
+  }
+  startGame(found,role);
 }
-
-/* --- GAME --- */
-let CURRENT=null, CHOICE=null;
+let CURRENT=null,CHOICE=null;
 function startGame(g,role){
-  CURRENT=g; CHOICE=null;
+  CURRENT=g;CHOICE=null;
   document.getElementById("gameArea").style.display="block";
   document.getElementById("gameTitle").innerText=`Partida ${g.clientName} (${role})`;
-  const wrap=document.getElementById("doorsWrap"); wrap.innerHTML="";
-  for(let i=1;i<=3;i++){
-    const d=document.createElement("div");
-    d.className="door"; d.textContent=i;
-    d.onclick=()=>{CHOICE=i; document.getElementById("playResult").innerText=`Elegiste la puerta ${i}`;};
-    wrap.appendChild(d);
-  }
+  const wrap=document.getElementById("doorsWrap");wrap.innerHTML="";
+  for(let i=1;i<=3;i++){const d=document.createElement("div");d.className="door";d.textContent=i;d.onclick=()=>{CHOICE=i;document.getElementById("playResult").innerText=`Elegiste la puerta ${i}`};wrap.appendChild(d);}
 }
-
 async function simulate(change){
-  if(!CURRENT) return;
-  if(!CHOICE) return alert("Elegí una puerta");
+  if(!CURRENT) return;if(!CHOICE) return alert("Elegí una puerta");
   const prize=Math.floor(Math.random()*3)+1;
-  let finalChoice;
-  if(change){
-    const opts=[1,2,3].filter(x=>x!==CHOICE);
-    finalChoice=opts[Math.floor(Math.random()*opts.length)];
-  } else finalChoice=CHOICE;
+  let finalChoice;if(change){const opts=[1,2,3].filter(x=>x!==CHOICE);finalChoice=opts[Math.floor(Math.random()*opts.length)];} else finalChoice=CHOICE;
   const win=finalChoice===prize;
   document.getElementById("playResult").innerText=win?"🎉 ¡Ganaste!":"❌ Perdiste. El premio estaba en "+prize;
-
-  await saveToSheet({
-    action:"play",
-    FechaRegistro: nowIso(),
-    Accion:"PLAY",
-    CodigoJuego: CURRENT.gameCode,
-    Cliente: CURRENT.clientName,
-    CodigoInstructor: CURRENT.instructorCode,
-    Resultado: JSON.stringify({win,prize,choice:CHOICE,finalChoice})
-  });
+  await saveToSheet({action:"play",Accion:"PLAY",Rol:"Jugador",CodigoJuego:CURRENT.gameCode,Cliente:CURRENT.clientName,CodigoInstructor:CURRENT.instructorCode,Resultado:JSON.stringify({win,prize,choice:CHOICE,finalChoice}),FechaRegistro:nowIso()});
 }
+
+/* --- AUTO DETECT ?game= --- */
+(function(){
+  const params=new URLSearchParams(window.location.search);
+  if(params.has("game")){
+    document.getElementById("adminLogin").style.display="none";
+    document.getElementById("playerPanel").style.display="block";
+  }
+})();
 </script>
 </body>
 </html>
