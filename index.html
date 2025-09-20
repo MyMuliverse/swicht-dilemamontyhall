@@ -16,7 +16,8 @@
   button.ghost{background:#eee;color:#222}
   .small{font-size:13px;color:var(--muted)}
   .links-list{margin-top:8px}
-  .link-item{background:#fbfbff;padding:10px;border-radius:8px;border:1px solid #eee;margin:8px 0;display:flex;justify-content:space-between;gap:8px;align-items:center}
+  .link-item{background:#fbfbff;padding:10px;border-radius:8px;border:1px solid #eee;margin:8px 0;padding:10px}
+  .codes{font-family:monospace;background:#f9f9f9;padding:6px;border-radius:6px;display:block;margin-top:6px}
   .doors{display:flex;gap:12px;justify-content:center;margin:18px 0}
   .door{width:120px;height:180px;background:#1f2a44;color:#fff;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:28px;cursor:pointer}
   .result{margin-top:12px;font-weight:bold}
@@ -80,13 +81,9 @@ const API_URL = "https://script.google.com/macros/s/AKfycbyB3go-c9babrB9TIpCigWD
 const STORAGE_KEY = "mh_games_v1";
 
 /* --- UTIL --- */
-function randCode(len=6){
-  const chars = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-  let s=""; for(let i=0;i<len;i++) s+=chars.charAt(Math.floor(Math.random()*chars.length));
-  return s;
-}
-function nowIso(){ return new Date().toISOString(); }
-function daysFromNow(days){ return new Date(Date.now()+days*24*3600*1000).toISOString(); }
+function randCode(len=6){const chars="ABCDEFGHJKMNPQRSTUVWXYZ23456789";let s="";for(let i=0;i<len;i++)s+=chars.charAt(Math.floor(Math.random()*chars.length));return s;}
+function nowIso(){return new Date().toISOString();}
+function daysFromNow(days){return new Date(Date.now()+days*24*3600*1000).toISOString();}
 
 /* --- LOCAL --- */
 function loadGamesLocal(){const raw=localStorage.getItem(STORAGE_KEY);return raw?JSON.parse(raw):{};}
@@ -94,10 +91,8 @@ function saveGamesLocal(obj){localStorage.setItem(STORAGE_KEY, JSON.stringify(ob
 
 /* --- REMOTO --- */
 async function saveToSheet(payload){
-  try{
-    const res = await fetch(API_URL,{method:"POST",headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    return await res.json();
-  }catch(err){console.error(err);return {ok:false,error:err.message};}
+  try{const res=await fetch(API_URL,{method:"POST",headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});return await res.json();}
+  catch(err){console.error(err);return {ok:false,error:err.message};}
 }
 
 /* --- ADMIN --- */
@@ -115,12 +110,13 @@ async function createGame(){
   const days=parseInt(document.getElementById("daysValid").value||30);
   if(!clientName) return alert("Ingresá nombre del cliente");
   const gameCode=randCode(6), instructorCode=randCode(6);
-  const playerCodes={}; for(let i=0;i<qty;i++) playerCodes[randCode(6)]={used:false};
+  const playerCodes={};for(let i=0;i<qty;i++)playerCodes[randCode(6)]={used:false};
   const g={gameCode,clientName,createdAt:nowIso(),expiresAt:daysFromNow(days),instructorCode,playerCodes};
   const all=loadGamesLocal();all[gameCode]=g;saveGamesLocal(all);
+
   await saveToSheet({action:"save_game",Accion:"SAVE_GAME",Rol:"Admin",CodigoJuego:gameCode,Cliente:clientName,FechaCreacion:g.createdAt,FechaExpira:g.expiresAt,CodigoInstructor:instructorCode,Resultado:JSON.stringify(playerCodes),FechaRegistro:nowIso()});
+
   refreshGamesList();
-  alert("Partida creada. Copiá el link y envialo al cliente.");
 }
 function refreshGamesList(){
   const cont=document.getElementById("gamesList");cont.innerHTML="";
@@ -128,9 +124,18 @@ function refreshGamesList(){
   Object.values(all).forEach(g=>{
     const link=`${window.location.origin}${window.location.pathname}?game=${g.gameCode}`;
     const div=document.createElement("div");div.className="link-item";
-    div.innerHTML=`<div><strong>${g.clientName}</strong><br><span class="small muted">Juego: ${g.gameCode}</span></div>`;
+    div.innerHTML=`<div><strong>${g.clientName}</strong><br>
+    <span class="small muted">Juego: ${g.gameCode}</span><br>
+    <span class="small">Instructor: ${g.instructorCode}</span><br>
+    <span class="small">Jugadores: ${Object.keys(g.playerCodes).join(", ")}</span></div>`;
+    // botones copiar
     const b1=document.createElement("button");b1.textContent="Copiar link";b1.onclick=()=>{navigator.clipboard.writeText(link);alert("Link copiado")};
-    div.appendChild(b1);cont.appendChild(div);
+    const b2=document.createElement("button");b2.textContent="Copiar instructor";b2.onclick=()=>{navigator.clipboard.writeText(g.instructorCode);alert("Clave instructor copiada")};
+    const b3=document.createElement("button");b3.textContent="Copiar jugadores";b3.onclick=()=>{navigator.clipboard.writeText(Object.keys(g.playerCodes).join(", "));alert("Códigos jugadores copiados")};
+    const b4=document.createElement("button");b4.textContent="Copiar todo";b4.onclick=()=>{const txt=`Link: ${link}\nInstructor: ${g.instructorCode}\nCódigos jugadores: ${Object.keys(g.playerCodes).join(", ")}`;navigator.clipboard.writeText(txt);alert("Datos copiados")};
+    div.appendChild(document.createElement("br"));
+    div.appendChild(b1);div.appendChild(b2);div.appendChild(b3);div.appendChild(b4);
+    cont.appendChild(div);
   });
 }
 
@@ -145,13 +150,10 @@ async function loginPlayer(){
   }
   if(!found) return alert("Código inválido");
   if(role==="Jugador" && found.playerCodes[playerKey].used) return alert("Código ya usado");
-  if(role==="Jugador"){
-    found.playerCodes[playerKey].used=true;saveGamesLocal(all);
+  if(role==="Jugador"){found.playerCodes[playerKey].used=true;saveGamesLocal(all);
     await saveToSheet({action:"mark_used",Accion:"USED",Rol:"Jugador",CodigoJuego:found.gameCode,Cliente:found.clientName,CodigoInstructor:found.instructorCode,CodigoJugador:playerKey,Estado:"usado",FechaRegistro:nowIso()});
   }
-  if(role==="Instructor"){
-    await saveToSheet({action:"instructor_view",Accion:"VIEW",Rol:"Instructor",CodigoJuego:found.gameCode,Cliente:found.clientName,CodigoInstructor:found.instructorCode,FechaRegistro:nowIso()});
-  }
+  if(role==="Instructor"){await saveToSheet({action:"instructor_view",Accion:"VIEW",Rol:"Instructor",CodigoJuego:found.gameCode,Cliente:found.clientName,CodigoInstructor:found.instructorCode,FechaRegistro:nowIso()});}
   startGame(found,role);
 }
 let CURRENT=null,CHOICE=null;
