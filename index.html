@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Simulador - Admin & Jugadores</title>
+<title>Dilema Monty Hall</title>
 <style>
   :root{--blue:#1f6feb;--bg:#f5f6f8;--card:#ffffff;--muted:#666}
   body{margin:0;font-family:Inter,Arial,Helvetica,sans-serif;background:var(--bg);color:#111}
@@ -17,7 +17,6 @@
   .small{font-size:13px;color:var(--muted)}
   .links-list{margin-top:8px}
   .link-item{background:#fbfbff;padding:10px;border-radius:8px;border:1px solid #eee;margin:8px 0;display:flex;justify-content:space-between;gap:8px;align-items:center}
-  .codes{font-family:monospace;background:#f1f5ff;padding:8px;border-radius:6px}
   .doors{display:flex;gap:12px;justify-content:center;margin:18px 0}
   .door{width:120px;height:180px;background:#1f2a44;color:#fff;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:28px;cursor:pointer}
   .result{margin-top:12px;font-weight:bold}
@@ -34,7 +33,7 @@
         <button onclick="adminLogin()">Entrar</button>
         <button class="ghost" onclick="showPublic()">Entrar como Cliente/Invitado</button>
       </div>
-      <p class="small">Clave maestra por defecto: <strong>9090</strong> (puedes cambiarla en el código)</p>
+      <p class="small">Clave maestra por defecto: <strong>9090</strong></p>
     </div>
 
     <!-- ADMIN PANEL -->
@@ -52,16 +51,9 @@
         <button onclick="createGame()">Generar nueva partida</button>
       </div>
 
-      <div class="small muted">Al generar obtendrás: link (para enviar), código instructor, códigos de participantes. Link y códigos quedan válidos por X días y cada código participante se bloquea al usarse.</div>
-
       <div style="margin-top:18px">
         <h3>Partidas generadas</h3>
         <div id="gamesList" class="links-list"></div>
-      </div>
-
-      <div style="margin-top:18px">
-        <button onclick="exportAll()">Exportar todas las partidas (JSON)</button>
-        <button class="ghost" onclick="clearAllLocal()">Borrar datos locales (solo localStorage)</button>
       </div>
     </div>
 
@@ -85,44 +77,24 @@
       </div>
     </div>
 
-    <div id="infoBox" class="card" style="display:none">
-      <h3>Información</h3>
-      <div id="infoText" class="small"></div>
-    </div>
   </div>
 
 <script>
-/*
-  Reglas / almacenamiento
-  - intentamos persistir en API_URL si está configurado (tu Apps Script). Si no, usamos localStorage.
-  - Estructura localStorage key "mh_games" => objeto { gameCode: {...} }
-  - game object:
-    {
-      gameCode: "ABC123",
-      clientName: "Acme",
-      createdAt: timestamp,
-      expiresAt: timestamp,
-      instructorCode: "INST1",
-      playerCodes: { "P1": {used:false, usedAt:null}, ... },
-      usedCount: 0
-    }
-*/
-
-const MASTER_KEY = "9090"; // tu clave maestra (cambiarla aquí si querés)
-const API_URL = ""; // si tenés Apps Script para persistir, pon acá tu endpoint (opcional), ejemplo la URL del script
+const MASTER_KEY = "9090";
+const API_URL = "https://script.google.com/macros/s/AKfycbxFiB-ADDPpiZsXBU0nGjFtS2In7IqvFewrJEZdJueQjsz5LyvVNvgMnR4a_uRfOY4/exec";
 const STORAGE_KEY = "mh_games_v1";
 
-/* ---------- UTIL ---------- */
+/* --- UTIL --- */
 function randCode(len=6){
   const chars = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
   let s="";
   for(let i=0;i<len;i++) s+=chars.charAt(Math.floor(Math.random()*chars.length));
   return s;
 }
-function nowTs(){ return Date.now(); }
-function daysFromNow(days){ return Date.now()+days*24*3600*1000; }
+function nowIso(){ return new Date().toISOString(); }
+function daysFromNow(days){ return new Date(Date.now()+days*24*3600*1000).toISOString(); }
 
-/* ---------- STORAGE: local + optional remote ---------- */
+/* --- STORAGE LOCAL --- */
 function loadGamesLocal(){
   const raw = localStorage.getItem(STORAGE_KEY);
   return raw ? JSON.parse(raw) : {};
@@ -130,29 +102,29 @@ function loadGamesLocal(){
 function saveGamesLocal(obj){
   localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
 }
-async function tryRemoteSave(payload){
-  if(!API_URL) return {ok:false, msg:"no api url"};
-  try{
-    const r = await fetch(API_URL, {
+
+/* --- REMOTE SAVE --- */
+async function saveToSheet(payload){
+  try {
+    const res = await fetch(API_URL, {
       method:"POST",
-      headers: {'Content-Type':'application/json'},
+      headers:{'Content-Type':'application/json'},
       body: JSON.stringify(payload)
     });
-    const j = await r.json();
-    return {ok:true, res:j};
-  }catch(e){
-    return {ok:false, msg:e.message};
+    return await res.json();
+  } catch(err){
+    console.error("Error guardando en sheet:", err);
+    return {ok:false, error:err.message};
   }
 }
 
-/* ---------- ADMIN UI ---------- */
+/* --- ADMIN --- */
 function adminLogin(){
   const key = document.getElementById("masterKey").value.trim();
   if(key===MASTER_KEY){
     document.getElementById("adminPanel").style.display="block";
     document.getElementById("playerPanel").style.display="none";
     refreshGamesList();
-    showInfo("Acceso administrativo concedido", true);
   } else {
     alert("Clave incorrecta");
   }
@@ -160,219 +132,136 @@ function adminLogin(){
 function showPublic(){
   document.getElementById("adminPanel").style.display="none";
   document.getElementById("playerPanel").style.display="block";
-  // if link contains game param, pre-fill
-  const params = new URLSearchParams(window.location.search);
-  if(params.has("game")){
-    const code = params.get("game");
-    // prefill code field
-    document.getElementById("playerCode").value = code;
-  }
 }
 
-/* ---------- CREATE GAME ---------- */
+/* --- CREATE GAME --- */
 async function createGame(){
-  const clientName = (document.getElementById("clientName").value || "").trim();
-  const qty = Math.max(1, parseInt(document.getElementById("qtyPlayers").value || 5));
-  const days = Math.max(1, parseInt(document.getElementById("daysValid").value || 30));
+  const clientName = (document.getElementById("clientName").value||"").trim();
+  const qty = parseInt(document.getElementById("qtyPlayers").value||5);
+  const days = parseInt(document.getElementById("daysValid").value||30);
   if(!clientName) return alert("Ingresá nombre del cliente");
 
   const gameCode = randCode(6);
   const instructorCode = randCode(6);
   const playerCodes = {};
-  for(let i=0;i<qty;i++) playerCodes[randCode(6)] = {used:false, usedAt:null};
+  for(let i=0;i<qty;i++) playerCodes[randCode(6)] = {used:false};
 
   const g = {
-    gameCode,
-    clientName,
-    createdAt: nowTs(),
+    gameCode, clientName,
+    createdAt: nowIso(),
     expiresAt: daysFromNow(days),
-    instructorCode,
-    playerCodes,
-    usedCount:0
+    instructorCode, playerCodes
   };
 
-  // save local
-  const all = loadGamesLocal();
-  all[gameCode]=g;
-  saveGamesLocal(all);
+  // local
+  const all = loadGamesLocal(); all[gameCode]=g; saveGamesLocal(all);
 
-  // try remote save (async) so Sheets can also store if lo configuraste
-  tryRemoteSave({action:"save_game",game:g}).then(r=>{ if(!r.ok) console.log("remote save failed", r); });
+  // remoto
+  await saveToSheet({
+    action:"save_game",
+    FechaRegistro: nowIso(),
+    Accion: "SAVE_GAME",
+    CodigoJuego: gameCode,
+    Cliente: clientName,
+    FechaCreacion: g.createdAt,
+    FechaExpira: g.expiresAt,
+    CodigoInstructor: instructorCode,
+    Resultado: JSON.stringify(playerCodes)
+  });
 
   refreshGamesList();
-  showInfo("Partida creada. Copiala y mandala al cliente (link y códigos).", true);
+  alert("Partida creada y guardada en la hoja.");
 }
 
-/* ---------- UI: list games ---------- */
+/* --- LIST GAMES --- */
 function refreshGamesList(){
-  const cont = document.getElementById("gamesList");
+  const cont=document.getElementById("gamesList");
   cont.innerHTML="";
   const all = loadGamesLocal();
-  const keys = Object.keys(all).sort((a,b)=>all[b].createdAt-all[a].createdAt);
-  if(keys.length===0){
-    cont.innerHTML = "<div class='small muted'>No hay partidas generadas.</div>";
-    return;
-  }
-  keys.forEach(k=>{
-    const g = all[k];
-    const item = document.createElement("div");
-    item.className="link-item";
-    const left = document.createElement("div");
-    left.innerHTML = `<strong>${g.clientName}</strong><div class="small muted">Código: ${g.gameCode} · Expira: ${new Date(g.expiresAt).toLocaleString()}</div>`;
-    const right = document.createElement("div");
-    // link
+  Object.values(all).forEach(g=>{
     const link = `${window.location.origin}${window.location.pathname}?game=${g.gameCode}`;
-    const btnCopyLink = document.createElement("button");
-    btnCopyLink.textContent="Copiar link";
-    btnCopyLink.onclick = ()=>{navigator.clipboard.writeText(link); alert("Link copiado");};
-
-    const btnCopyCodes = document.createElement("button");
-    btnCopyCodes.textContent="Copiar códigos";
-    btnCopyCodes.onclick = ()=>{
-      // prepare text
-      const codes = Object.keys(g.playerCodes).map(c=> `${c} ${g.playerCodes[c].used ? "(usado)" : ""}`).join("\n");
-      const txt = `Link: ${link}\nInstructor: ${g.instructorCode}\nCódigos participantes:\n${codes}`;
-      navigator.clipboard.writeText(txt);
-      alert("Códigos copiados al portapapeles");
-    };
-
-    const btnInvalidate = document.createElement("button");
-    btnInvalidate.className="ghost";
-    btnInvalidate.textContent="Caducar ahora";
-    btnInvalidate.onclick = ()=>{
-      if(!confirm("Forzar expiración ahora?")) return;
-      g.expiresAt = Date.now()-1000;
-      const all2 = loadGamesLocal(); all2[g.gameCode]=g; saveGamesLocal(all2); refreshGamesList();
-    };
-
-    right.appendChild(btnCopyLink);
-    right.appendChild(document.createTextNode(" "));
-    right.appendChild(btnCopyCodes);
-    right.appendChild(document.createTextNode(" "));
-    right.appendChild(btnInvalidate);
-
-    item.appendChild(left);
-    item.appendChild(right);
-    cont.appendChild(item);
+    const div=document.createElement("div");
+    div.className="link-item";
+    div.innerHTML = `<div><strong>${g.clientName}</strong><br>
+    <span class="small muted">Juego: ${g.gameCode} · Expira: ${g.expiresAt}</span></div>`;
+    const b1=document.createElement("button");
+    b1.textContent="Copiar link";
+    b1.onclick=()=>{navigator.clipboard.writeText(link); alert("Link copiado");};
+    div.appendChild(b1);
+    cont.appendChild(div);
   });
 }
 
-/* ---------- PLAYER FLOW ---------- */
-function loginPlayer(){
-  const code = (document.getElementById("playerCode").value || "").trim();
-  if(!code) return alert("Ingresá un código participante");
-  // find which game contains this participant code or if code equals instructor code
-  const all = loadGamesLocal();
-  let foundGame = null, role = "participant", playerKey = null;
-  for(const k in all){
-    const g = all[k];
-    if(g.instructorCode === code){ foundGame = g; role="instructor"; break; }
-    if(g.playerCodes && g.playerCodes[code]!==undefined){ foundGame=g; role="participant"; playerKey=code; break; }
+/* --- PLAYER FLOW --- */
+async function loginPlayer(){
+  const code = (document.getElementById("playerCode").value||"").trim();
+  if(!code) return alert("Ingresá un código");
+
+  const all=loadGamesLocal();
+  let found=null, role="participant";
+  for(const g of Object.values(all)){
+    if(g.instructorCode===code){found=g; role="instructor"; break;}
+    if(g.playerCodes[code]!==undefined){found=g; role="participant"; break;}
   }
-  if(!foundGame) return alert("Código no válido o no encontrado");
-  // check expiration
-  if(Date.now() > foundGame.expiresAt) return alert("Este link/código expiró");
+  if(!found) return alert("Código no válido");
 
-  // if participant check used
-  if(role==="participant" && foundGame.playerCodes[playerKey].used) return alert("Este código ya fue utilizado");
+  if(role==="participant" && found.playerCodes[code].used) return alert("Código ya usado");
 
-  // mark used if participant
   if(role==="participant"){
-    foundGame.playerCodes[playerKey].used = true;
-    foundGame.playerCodes[playerKey].usedAt = Date.now();
-    foundGame.usedCount = (foundGame.usedCount||0) + 1;
-    const all2 = loadGamesLocal(); all2[foundGame.gameCode]=foundGame; saveGamesLocal(all2);
-    tryRemoteSave({action:"mark_used",gameCode:foundGame.gameCode,playerCode:playerKey});
+    found.playerCodes[code].used=true;
+    saveGamesLocal(all);
+    await saveToSheet({
+      action:"mark_used",
+      FechaRegistro: nowIso(),
+      Accion: "USED",
+      CodigoJuego: found.gameCode,
+      Cliente: found.clientName,
+      CodigoInstructor: found.instructorCode,
+      CodigoJugador: code,
+      Estado: "usado"
+    });
   }
 
-  // show game UI
-  startGame(foundGame, role);
+  startGame(found, role);
 }
 
-/* ---------- GAME UI & SIMULATION ---------- */
-let CURRENT_GAME = null;
-let CHOSEN_DOOR = null;
-function startGame(game, role){
-  CURRENT_GAME = game;
-  CHOSEN_DOOR = null;
-  document.getElementById("playerPanel").style.display="block";
+/* --- GAME --- */
+let CURRENT=null, CHOICE=null;
+function startGame(g,role){
+  CURRENT=g; CHOICE=null;
   document.getElementById("gameArea").style.display="block";
-  document.getElementById("gameTitle").innerText = `Partida: ${game.clientName} (${role})`;
-  // render doors
-  const wrap = document.getElementById("doorsWrap");
-  wrap.innerHTML="";
+  document.getElementById("gameTitle").innerText=`Partida ${g.clientName} (${role})`;
+  const wrap=document.getElementById("doorsWrap"); wrap.innerHTML="";
   for(let i=1;i<=3;i++){
-    const d = document.createElement("div");
-    d.className="door";
-    d.innerText=i;
-    d.onclick = ()=>{ CHOSEN_DOOR=i; document.getElementById("playResult").innerText=`Elegiste la puerta ${i}`; };
+    const d=document.createElement("div");
+    d.className="door"; d.textContent=i;
+    d.onclick=()=>{CHOICE=i; document.getElementById("playResult").innerText=`Elegiste la puerta ${i}`;};
     wrap.appendChild(d);
   }
-  showInfo(`Entraste a la partida "${game.clientName}". Código de instructor: ${game.instructorCode}`, true);
 }
 
-function simulate(change){
-  if(!CURRENT_GAME) return alert("No hay partida activa");
-  if(!CHOSEN_DOOR) return alert("Elegí una puerta primero");
-  const prize = Math.floor(Math.random()*3)+1;
-  // Monty opens a non-prize non-chosen door (not shown UI, but we compute final)
+async function simulate(change){
+  if(!CURRENT) return;
+  if(!CHOICE) return alert("Elegí una puerta");
+  const prize=Math.floor(Math.random()*3)+1;
   let finalChoice;
   if(change){
-    // change: choose a door different from chosen and Monty's opened (simulate by selecting the other not chosen)
-    const options = [1,2,3].filter(x=>x!==CHOSEN_DOOR);
-    finalChoice = options[Math.floor(Math.random()*options.length)];
-  } else {
-    finalChoice = CHOSEN_DOOR;
-  }
-  const win = finalChoice===prize;
-  document.getElementById("playResult").innerText = win ? "🎉 ¡Ganaste!" : `❌ Perdiste. El premio estaba en la puerta ${prize}`;
-  // optionally persist result
-  tryRemoteSave({action:"play",gameCode:CURRENT_GAME.gameCode,result:{win,prize,choice:CHOSEN_DOOR,finalChoice,ts:Date.now()}});
-}
+    const opts=[1,2,3].filter(x=>x!==CHOICE);
+    finalChoice=opts[Math.floor(Math.random()*opts.length)];
+  } else finalChoice=CHOICE;
+  const win=finalChoice===prize;
+  document.getElementById("playResult").innerText=win?"🎉 ¡Ganaste!":"❌ Perdiste. El premio estaba en "+prize;
 
-/* ---------- HELPERS ---------- */
-function showInfo(msg, showCard=false){
-  const box = document.getElementById("infoBox");
-  const txt = document.getElementById("infoText");
-  txt.innerText = msg;
-  box.style.display = showCard ? "block" : "none";
+  await saveToSheet({
+    action:"play",
+    FechaRegistro: nowIso(),
+    Accion:"PLAY",
+    CodigoJuego: CURRENT.gameCode,
+    Cliente: CURRENT.clientName,
+    CodigoInstructor: CURRENT.instructorCode,
+    Resultado: JSON.stringify({win,prize,choice:CHOICE,finalChoice})
+  });
 }
-
-/* ---------- EXPORT / CLEAR ---------- */
-function exportAll(){
-  const all = loadGamesLocal();
-  const data = JSON.stringify(all, null, 2);
-  // download
-  const blob = new Blob([data], {type:"application/json"});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = "mh_games_export.json"; document.body.appendChild(a); a.click();
-  setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); },1500);
-}
-function clearAllLocal(){
-  if(!confirm("Borrar todos los datos guardados en este navegador? Esto NO afecta a tu API si la estás usando.")) return;
-  localStorage.removeItem(STORAGE_KEY);
-  refreshGamesList();
-  alert("Datos locales eliminados");
-}
-
-/* ---------- AUTO: si abrís con ?game=xxxx pre-carga y muestra panel jugador ---------- */
-(function initFromUrl(){
-  const params = new URLSearchParams(window.location.search);
-  if(params.has("game")){
-    const code = params.get("game");
-    // if we have a game with that code show player panel and prefill
-    const all = loadGamesLocal();
-    if(all[code]){
-      document.getElementById("playerPanel").style.display="block";
-      document.getElementById("playerCode").value = code;
-    } else {
-      // still show playerPanel so user can paste code
-      document.getElementById("playerPanel").style.display="block";
-      document.getElementById("playerCode").value = code;
-    }
-  }
-})();
 </script>
 </body>
 </html>
