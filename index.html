@@ -1,568 +1,226 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Dilema Monty Hall</title>
-<style>
-  :root{
-    --bg:#0b1224;--card:#111827;--muted:#9ca3af;--text:#e5e7eb;--accent:#22d3ee;
-    --ok:#22c55e;--warn:#f59e0b;--bad:#ef4444;--primary:#6366f1
-  }
-  *{box-sizing:border-box}
-  html,body{height:100%}
-  body{
-    margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial;
-    background:radial-gradient(1200px 600px at 50% -10%,#1f2a44 0%,#0b1224 45%,#070c1a 100%);
-    color:var(--text)
-  }
-  .wrap{max-width:1100px;margin:0 auto;padding:24px}
-  .card{background:rgba(17,24,39,.9);backdrop-filter:saturate(1.2) blur(4px);
-    border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:20px;margin-bottom:16px}
-  h1,h2,h3{margin:0 0 10px}
-  .muted{color:var(--muted)}
-  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
-  input,select,textarea{padding:12px;border-radius:12px;border:1px solid #293244;background:#0b1224;color:var(--text)}
-  button{
-    appearance:none;border:none;border-radius:12px;padding:12px 16px;background:var(--accent);color:#001018;
-    font-weight:700;cursor:pointer;transition:.2s;box-shadow:0 8px 18px rgba(34,211,238,.25)
-  }
-  button:hover{transform:translateY(-1px)}
-  button.ghost{background:transparent;border:1px solid #334155;color:#e2e8f0;box-shadow:none}
-  .links-list{display:grid;gap:12px}
-  .link-item{border:1px solid #334155;border-radius:14px;padding:12px;background:#0b1224}
-  .pill{padding:2px 8px;border-radius:999px;background:#0b1224;border:1px solid #223; font-size:12px;color:#a7b0c0}
-  /* Puertas */
-  .stage{display:flex;justify-content:center;gap:24px;margin:18px 0 6px}
-  .door{
-    width:150px;height:230px;border-radius:14px;background:linear-gradient(180deg,#3b4a7a,#1f2a44);
-    position:relative;cursor:pointer;box-shadow:inset 0 0 0 2px rgba(255,255,255,.08),0 10px 25px rgba(0,0,0,.35);
-    transition:transform .15s ease, filter .2s ease;
-  }
-  .door:hover{transform:translateY(-2px);filter:brightness(1.05)}
-  .door-number{position:absolute;top:8px;right:12px;font-weight:800;color:#cbd5e1}
-  .knob{position:absolute;right:16px;top:50%;width:12px;height:12px;background:#facc15;border-radius:50%}
-  .door.opened{transform:rotateY(12deg) translateY(-2px);filter:brightness(1.1)}
-  .reveal{
-    position:absolute;inset:6px;border-radius:10px;background:radial-gradient(80px 60px at 70% 35%,rgba(255,255,255,.25),transparent),
-    linear-gradient(180deg,#0b1224,#0b1224);
-    display:flex;align-items:center;justify-content:center;font-size:56px
-  }
-  .cta{display:flex;gap:12px;justify-content:center;margin-top:10px}
-  .result{margin-top:10px;font-weight:800}
-  .result.ok{color:var(--ok)} .result.bad{color:var(--bad)}
-  /* Toast */
-  .toast{
-    position:fixed;left:50%;bottom:22px;transform:translateX(-50%);
-    background:#0b1224;border:1px solid #334155;color:#e5e7eb;padding:10px 14px;border-radius:999px;
-    box-shadow:0 10px 25px rgba(0,0,0,.3);opacity:0;pointer-events:none;transition:opacity .2s, transform .2s; z-index:9999;
-  }
-  .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
-  /* Tabs instructor */
-  .tabs{display:flex;gap:8px;margin:10px 0}
-  .tab{padding:8px 12px;border-radius:999px;border:1px solid #334155;cursor:pointer}
-  .tab.active{background:#1f2937}
-  table{width:100%;border-collapse:collapse;margin-top:6px}
-  th,td{border-bottom:1px solid #223;padding:8px;text-align:left;font-size:14px}
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dilema Monty Hall – Simulador</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #0f172a;
+      color: #e5e7eb;
+      margin: 0;
+      padding: 0;
+    }
+    .container { max-width: 1000px; margin: auto; padding: 20px; }
+    .card {
+      background: #111827;
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+    }
+    .btn {
+      background: #22d3ee;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      margin: 4px;
+    }
+    .btn:hover { background: #06b6d4; }
+    .door {
+      width: 120px; height: 180px;
+      background: brown; border: 4px solid #5a3b2e;
+      border-radius: 6px;
+      display: inline-flex; align-items: center; justify-content: center;
+      margin: 10px; color: #fff; font-weight: bold; cursor: pointer;
+      transition: transform .5s;
+    }
+    .door.open { transform: rotateY(160deg); background: #333; }
+    .toast {
+      position: fixed; bottom: 20px; right: 20px;
+      background: #22c55e; color: #fff; padding: 10px 20px;
+      border-radius: 8px; opacity: 0; transition: opacity .5s;
+    }
+    .toast.show { opacity: 1; }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
-  <div class="wrap">
-    <!-- LOGIN ADMIN -->
-    <div id="adminLogin" class="card">
-      <h1>🎛️ Dilema Monty Hall — Administrador</h1>
-      <p class="muted">Ingresá tu clave maestra para crear partidas.</p>
-      <div class="row">
-        <input id="masterKey" placeholder="Clave maestra" />
-        <button onclick="adminLogin()">Entrar</button>
-      </div>
-      <div class="muted" style="margin-top:6px">Clave por defecto: <span class="pill">9090</span></div>
-    </div>
-
-    <!-- PANEL ADMIN -->
-    <div id="adminPanel" class="card" style="display:none">
-      <h2>Panel de Administrador</h2>
-      <div class="row" style="margin-top:6px">
-        <input id="clientName" placeholder="Cliente / Empresa" />
-        <label class="pill">Modo</label>
-        <select id="mode">
-          <option value="groups">Grupos × Jugadores</option>
-          <option value="solo">Hasta 50 individuales</option>
-        </select>
-        <span class="pill">Duración (días)</span>
-        <input id="daysValid" type="number" min="1" value="30" style="width:100px" />
-      </div>
-
-      <div id="groupsCfg" class="row" style="margin-top:6px">
-        <span class="pill"># Grupos</span>
-        <input id="numGroups" type="number" min="1" max="10" value="5" style="width:90px" />
-        <span class="pill">Jugadores / grupo</span>
-        <input id="playersPerGroup" type="number" min="1" max="10" value="5" style="width:90px" />
-      </div>
-
-      <div id="soloCfg" class="row" style="margin-top:6px; display:none">
-        <span class="pill">Cantidad de jugadores</span>
-        <input id="soloCount" type="number" min="1" max="50" value="20" style="width:120px" />
-      </div>
-
-      <div class="row" style="margin-top:8px">
-        <button onclick="createGame()">Generar nueva partida</button>
-      </div>
-      <div style="margin-top:18px">
-        <h3>Partidas generadas</h3>
-        <div id="gamesList" class="links-list"></div>
-      </div>
-    </div>
-
-    <!-- PANEL CLIENTE (Instructor/Jugador) -->
-    <div id="clientPanel" class="card" style="display:none">
-      <h2 id="clientTitle">Acceso a partida</h2>
-      <div class="row">
-        <input id="accessCode" placeholder="Código de instructor o jugador" />
-        <button onclick="enterClient()">Ingresar</button>
-      </div>
-
-      <!-- Vista INSTRUCTOR -->
-      <div id="instructorView" style="display:none; margin-top:12px">
-        <div class="tabs">
-          <div id="tabStats" class="tab active" onclick="setInstrTab('stats')">Estadísticas</div>
-          <div id="tabPlayers" class="tab" onclick="setInstrTab('players')">Jugadores</div>
-          <div id="tabHelp" class="tab" onclick="setInstrTab('help')">Instrucciones</div>
-        </div>
-
-        <div id="instrStats" class="card" style="background:#0b1224">
-          <h3>Estado general (en vivo)</h3>
-          <div class="row" style="margin-top:6px">
-            <div class="pill" id="statTotal">Total: 0</div>
-            <div class="pill" id="statUsed">Usados: 0</div>
-            <div class="pill" id="statWins">Ganaron: 0</div>
-            <div class="pill" id="statChangeRate">Cambios: 0%</div>
-          </div>
-        </div>
-
-        <div id="instrPlayers" class="card" style="display:none;background:#0b1224">
-          <h3>Jugadores</h3>
-          <table><thead><tr>
-            <th>Código</th><th>Grupo</th><th>Elegida</th><th>Abrió</th><th>Cambio</th><th>Resultado</th><th>Fecha</th>
-          </tr></thead><tbody id="playersTable"></tbody></table>
-        </div>
-
-        <div id="instrHelp" class="card" style="display:none;background:#0b1224">
-          <h3>Cómo usar</h3>
-          <p class="muted">Compartí el <strong>link</strong> de la partida y entregá a cada jugador su <strong>código</strong>. Con tu <strong>código de instructor</strong> podés ver el tablero y avances en vivo.</p>
-        </div>
-      </div>
-
-      <!-- Vista JUGADOR -->
-      <div id="playerView" style="display:none; margin-top:12px">
-        <div id="screenIntro">
-          <h3>Bienvenido al Dilema Monty Hall</h3>
-          <p class="muted">Hay 3 puertas. Una es 🚗 y dos son 🐐. Primero elegís una. Luego el presentador abrirá una puerta con cabra. Por último decidirás si cambiar o quedarte. ¿Listo?</p>
-          <div class="cta"><button onclick="startRound()">Comenzar</button></div>
-        </div>
-
-        <div id="screenPick" style="display:none">
-          <h3>Elegí una puerta</h3>
-          <div class="stage" id="doors"></div>
-          <div class="result muted" id="pickStatus"></div>
-        </div>
-
-        <div id="screenHost" style="display:none">
-          <h3>El presentador está pensando…</h3>
-          <p class="muted" id="hostText">Preparando una sorpresa…</p>
-        </div>
-
-        <div id="screenDecision" style="display:none">
-          <h3 id="decisionTitle">¿Te quedás o cambiás?</h3>
-          <div class="cta">
-            <button onclick="finalDecision(false)">Quedarme</button>
-            <button class="ghost" onclick="finalDecision(true)">Cambiar</button>
-          </div>
-        </div>
-
-        <div id="screenReveal" style="display:none">
-          <h3>Momento final…</h3>
-          <div class="stage" id="revealDoors"></div>
-          <div id="finalMsg" class="result"></div>
-        </div>
-      </div>
-    </div>
+  <div class="container">
+    <div id="app"></div>
   </div>
-
-  <div id="toast" class="toast">Copiado</div>
+  <div id="toast" class="toast"></div>
 
 <script>
-/* =========================
-   CONFIG & CONSTANTES
-========================= */
-const MASTER_KEY = "9090";
+const API_URL = "https://script.google.com/macros/s/AKfycbwWuYxxl4-PcGvlNPXF1J3al2Ch2OAbq6m369jcTeHQ6tbZjflyMhLR62G1aYZlPkA/exec";
 
-/* Cambiá estas dos URLs por tu WebApp si las actualizás */
-const API_URL_POST = "https://script.google.com/macros/s/AKfycbyB3go-c9babrB9TIpCigWDKOEozb5dhRrEottoJAlRr64FiVKXhdki0Y6-O_UeRHg/exec"; // doPost
-const API_URL_GET  = "https://script.google.com/macros/s/AKfycbyB3go-c9babrB9TIpCigWDKOEozb5dhRrEottoJAlRr64FiVKXhdki0Y6-O_UeRHg/exec?sheet=links"; // doGet
-
-const STORAGE_KEY = "mh_games_v3";
-
-/* Sonidos (podés reemplazar por archivos locales en /assets/sounds/...) */
-const SND = {
-  ambient: new Audio("https://cdn.pixabay.com/audio/2022/03/10/audio_1a8cd9d7ce.mp3"),
-  click:   new Audio("https://cdn.pixabay.com/download/audio/2022/03/15/audio_6e1a68c934.mp3?filename=click-124467.mp3"),
-  goat:    new Audio("https://cdn.pixabay.com/download/audio/2022/03/15/audio_9f3f7d8e6c.mp3?filename=goat-bleat-124478.mp3"),
-  engine:  new Audio("https://cdn.pixabay.com/download/audio/2021/09/07/audio_2d7e9c3e38.mp3?filename=car-engine-90634.mp3"),
-  fanfare: new Audio("https://cdn.pixabay.com/download/audio/2022/03/15/audio_e3b3f6f6f4.mp3?filename=success-fanfare-trumpets-6185.mp3"),
-  trombone:new Audio("https://cdn.pixabay.com/download/audio/2023/04/15/audio_9d5b7bfaa4.mp3?filename=sad-trombone-130539.mp3"),
-  clap:    new Audio("https://cdn.pixabay.com/download/audio/2021/08/04/audio_4a2a0b32e3.mp3?filename=small-crowd-applause-6713.mp3")
-};
-Object.values(SND).forEach(a=>{a.volume=0.6});
-
-/* =========================
-   UTILIDADES
-========================= */
-const $ = sel => document.querySelector(sel);
-function toast(msg="OK", ms=1600){
-  const t=$("#toast"); t.textContent=msg; t.classList.add("show");
-  setTimeout(()=>t.classList.remove("show"), ms);
-}
-function randCode(len=6){const c="ABCDEFGHJKMNPQRSTUVWXYZ23456789";let s="";for(let i=0;i<len;i++)s+=c[Math.floor(Math.random()*c.length)];return s;}
-function nowIso(){return new Date().toISOString();}
-function daysFromNow(days){return new Date(Date.now()+days*86400000).toISOString();}
-
-/* Local storage */
-function loadGames(){ try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||"{}")}catch{return{}} }
-function saveGames(obj){ localStorage.setItem(STORAGE_KEY, JSON.stringify(obj)) }
-
-/* Sheets */
-async function saveToSheet(payload){
-  try{
-    const r = await fetch(API_URL_POST,{method:"POST",headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    return await r.json();
-  }catch(e){ console.error(e); return {ok:false,error:e.message} }
-}
-async function fetchSheet(){
-  try{
-    const r = await fetch(API_URL_GET, {method:"GET"});
-    return await r.json();
-  }catch(e){ console.error(e); return [] }
+// 🎧 sonidos
+function playSound(name) {
+  const audio = new Audio(`assets/sounds/${name}.mp3`);
+  audio.play();
 }
 
-/* =========================
-   ADMIN
-========================= */
-function adminLogin(){
-  if($("#masterKey").value.trim()===MASTER_KEY){
-    $("#adminLogin").style.display="none";
-    $("#adminPanel").style.display="block";
-    renderGames();
-  }else toast("Clave incorrecta");
-}
-$("#mode").addEventListener("change",()=>{
-  const val=$("#mode").value;
-  $("#groupsCfg").style.display = val==="groups"?"flex":"none";
-  $("#soloCfg").style.display   = val==="solo"?"flex":"none";
-});
-
-async function createGame(){
-  const client = $("#clientName").value.trim();
-  if(!client) return toast("Ingresá cliente");
-  const mode=$("#mode").value;
-  const days=parseInt($("#daysValid").value||30);
-
-  let playerCodes={}, meta={mode};
-  if(mode==="groups"){
-    const G = Math.max(1, Math.min(10, parseInt($("#numGroups").value||5)));
-    const P = Math.max(1, Math.min(10, parseInt($("#playersPerGroup").value||5)));
-    meta.numGroups=G; meta.playersPerGroup=P;
-    for(let g=1;g<=G;g++){
-      for(let p=1;p<=P;p++){
-        const code=`G${String(g).padStart(2,"0")}-${String.fromCharCode(64+p)}`; // G01-A
-        playerCodes[code]={used:false, group:`G${g}`, slot:p};
-      }
-    }
-  }else{
-    const N=Math.max(1, Math.min(50, parseInt($("#soloCount").value||20)));
-    meta.count=N;
-    for(let i=1;i<=N;i++){
-      const code=`P${String(i).padStart(2,"0")}`; // P01
-      playerCodes[code]={used:false, group:null, slot:i};
-    }
-  }
-
-  const gameCode = randCode(6);
-  const instructor = randCode(6);
-  const game = {
-    gameCode, clientName:client, createdAt:nowIso(), expiresAt:daysFromNow(days),
-    instructorCode:instructor, playerCodes, meta
-  };
-
-  // save local
-  const all=loadGames(); all[gameCode]=game; saveGames(all);
-
-  // save sheet
-  await saveToSheet({
-    action:"save_game", Accion:"SAVE_GAME", Rol:"Admin", FechaRegistro:nowIso(),
-    CodigoJuego:gameCode, Cliente:client, FechaCreacion:game.createdAt, FechaExpira:game.expiresAt,
-    CodigoInstructor:instructor, Resultado: JSON.stringify({playerCodes, meta})
-  });
-
-  renderGames();
-  toast("Partida creada");
+// 🔔 toast
+function showToast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 2000);
 }
 
-function renderGames(){
-  const cont=$("#gamesList"); cont.innerHTML="";
-  const all=loadGames();
-  Object.values(all).sort((a,b)=> (a.createdAt<b.createdAt?1:-1)).forEach(g=>{
-    const link=`${location.origin}${location.pathname}?game=${g.gameCode}`;
-    const codes = Object.keys(g.playerCodes);
-    const box=document.createElement("div"); box.className="link-item";
-    box.innerHTML = `
-      <div style="margin-bottom:6px"><strong>${g.clientName}</strong> <span class="pill">Juego: ${g.gameCode}</span></div>
-      <div class="muted" style="margin-bottom:6px">Expira: ${new Date(g.expiresAt).toLocaleString()} · Modo: ${g.meta.mode==="groups" ? `${g.meta.numGroups}×${g.meta.playersPerGroup}` : `Individuales ${g.meta.count}`}</div>
-      <div class="row" style="gap:8px;margin-top:6px;flex-wrap:wrap">
-        <button class="ghost" onclick="copy('${link}')">Copiar link</button>
-        <button class="ghost" onclick="copy('${g.instructorCode}')">Copiar clave instructor</button>
-        <button class="ghost" onclick="copy('${codes.join(", ")}')">Copiar códigos jugadores</button>
-        <button class="ghost" onclick="copy(\`Link: ${link}\\nInstructor: ${g.instructorCode}\\nCódigos: ${codes.join(", ")}\`)">Copiar todo</button>
-      </div>
-    `;
-    cont.appendChild(box);
-  });
-}
-function copy(text){ navigator.clipboard.writeText(text); toast("Copiado al portapapeles"); }
+// rol segun query
+const params = new URLSearchParams(location.search);
+const role = params.get("role") || "player";
+const token = params.get("t") || "";
 
-/* =========================
-   CLIENTE (Instructor / Jugador)
-========================= */
-function bootClient(){
-  const p = new URLSearchParams(location.search);
-  if(p.has("game")){
-    $("#adminLogin").style.display="none";
-    $("#adminPanel").style.display="none";
-    $("#clientPanel").style.display="block";
-    const all=loadGames();
-    const g = all[p.get("game")];
-    $("#clientTitle").textContent = g ? `Partida: ${g.clientName}` : "Acceso a partida";
-  }
-}
-bootClient();
-
-async function enterClient(){
-  const code=$("#accessCode").value.trim();
-  if(!code) return toast("Ingresá código");
-  const p = new URLSearchParams(location.search);
-  const gameId = p.get("game");
-  const all=loadGames(); const g = gameId? all[gameId]: null;
-  if(!g){ toast("Partida no encontrada en este navegador"); return; }
-
-  // Instructor
-  if(code===g.instructorCode){
-    $("#instructorView").style.display="block";
-    $("#playerView").style.display="none";
-    await saveToSheet({action:"instructor_view", Accion:"VIEW", Rol:"Instructor",
-      CodigoJuego:g.gameCode, Cliente:g.clientName, CodigoInstructor:g.instructorCode, FechaRegistro:nowIso()});
-    await renderInstructorLive(g); // en vivo desde Sheets
-    return;
-  }
-
-  // Jugador
-  if(g.playerCodes[code]){
-    if(g.playerCodes[code].used) { toast("Código ya usado"); return; }
-    // marcar uso local + sheet
-    g.playerCodes[code].used = true;
-    const all2=loadGames(); all2[g.gameCode]=g; saveGames(all2);
-    await saveToSheet({action:"mark_used", Accion:"USED", Rol:"Jugador", FechaRegistro:nowIso(),
-      CodigoJuego:g.gameCode, Cliente:g.clientName, CodigoInstructor:g.instructorCode, CodigoJugador:code, Estado:"usado"});
-    // ingresar al juego
-    CURRENT = { game:g, playerCode:code };
-    $("#instructorView").style.display="none";
-    $("#playerView").style.display="block";
-    showScreen("screenIntro");
-    try{ SND.ambient.loop=true; SND.ambient.play(); }catch{}
-    return;
-  }
-
-  toast("Código inválido");
+function render() {
+  if (role === "admin") return renderAdmin();
+  if (role === "instructor") return renderInstructor();
+  return renderPlayer();
 }
 
-/* Instructor dashboard — EN VIVO desde Sheets */
-function setInstrTab(tab){
-  $("#tabStats").classList.toggle("active", tab==="stats");
-  $("#tabPlayers").classList.toggle("active", tab==="players");
-  $("#tabHelp").classList.toggle("active", tab==="help");
-  $("#instrStats").style.display = tab==="stats" ? "block" : "none";
-  $("#instrPlayers").style.display = tab==="players" ? "block" : "none";
-  $("#instrHelp").style.display = tab==="help" ? "block" : "none";
+// ===== ADMIN =====
+function renderAdmin() {
+  document.getElementById("app").innerHTML = `
+    <div class="card">
+      <h2>Administrador</h2>
+      <input id="cliente" placeholder="Cliente" class="input"/>
+      <button class="btn" onclick="crearPartida()">Crear partida</button>
+      <div id="links"></div>
+    </div>
+  `;
 }
-async function renderInstructorLive(g){
-  // traer filas de la hoja
-  const rows = await fetchSheet();
-  // filtrar por este juego
-  const list = Array.isArray(rows) ? rows.filter(r => r.CodigoJuego===g.gameCode) : [];
-
-  // totales
-  const saveRow = list.find(r => r.Accion==="SAVE_GAME");
-  let total = 0;
-  try{
-    if(saveRow && saveRow.Resultado){
-      const parsed = JSON.parse(saveRow.Resultado);
-      total = parsed && parsed.playerCodes ? Object.keys(parsed.playerCodes).length : 0;
-    }
-  }catch{}
-
-  const usedCount = list.filter(r => r.Accion==="USED").length;
-  const plays = list.filter(r => r.Accion==="PLAY");
-
-  const wins = plays.filter(p => {
-    try{ return JSON.parse(p.Resultado).win === true }catch{return false}
-  }).length;
-  const changed = plays.filter(p => {
-    try{ return JSON.parse(p.Resultado).changed === true }catch{return false}
-  }).length;
-  const changeRate = plays.length ? Math.round(100*changed/plays.length) : 0;
-
-  $("#statTotal").textContent   = `Total: ${total}`;
-  $("#statUsed").textContent    = `Usados: ${usedCount}`;
-  $("#statWins").textContent    = `Ganaron: ${wins}`;
-  $("#statChangeRate").textContent = `Cambios: ${changeRate}%`;
-
-  // tabla
-  const tbody=$("#playersTable"); tbody.innerHTML="";
-  plays.sort((a,b)=> (a.FechaRegistro > b.FechaRegistro ? -1 : 1)).forEach(p=>{
-    let row = {player:"",group:"",choice:"",opened:"",changed:false,win:false};
-    try{ row = JSON.parse(p.Resultado) }catch{}
-    const tr=document.createElement("tr");
-    const fecha = p.FechaRegistro ? new Date(p.FechaRegistro).toLocaleString() : "";
-    tr.innerHTML = `
-      <td>${row.player||""}</td>
-      <td>${row.group||""}</td>
-      <td>${row.choice??""}</td>
-      <td>${row.opened??""}</td>
-      <td>${row.changed? "Sí":"No"}</td>
-      <td>${row.win? "Ganó":"Perdió"}</td>
-      <td>${fecha}</td>`;
-    tbody.appendChild(tr);
-  });
-
-  // actualizar cada 15s
-  if (!renderInstructorLive._interval){
-    renderInstructorLive._interval = setInterval(()=>renderInstructorLive(g), 15000);
-  }
-}
-
-/* =========================
-   JUEGO (Jugador) — Presentador virtual
-========================= */
-let CURRENT = null; // { game, playerCode }
-let GAME = null;    // estado de ronda
-
-function showScreen(id){
-  ["screenIntro","screenPick","screenHost","screenDecision","screenReveal"]
-    .forEach(s=> $(`#${s}`).style.display = s===id? "block" : "none");
-}
-
-function stageDoors(containerId, openedIndex=-1, prizeIndex=-1){
-  const cont = $(`#${containerId}`); cont.innerHTML="";
-  for(let i=1;i<=3;i++){
-    const d=document.createElement("div");
-    d.className="door"; d.dataset.idx=i;
-    const num=document.createElement("div"); num.className="door-number"; num.textContent=i;
-    const knob=document.createElement("div"); knob.className="knob";
-    const reveal=document.createElement("div"); reveal.className="reveal"; reveal.style.display="none";
-    d.append(num,knob,reveal);
-
-    if(i===openedIndex){
-      d.classList.add("opened"); reveal.style.display="flex";
-      reveal.textContent = (i===prizeIndex) ? "🚗" : "🐐";
-    }
-    cont.appendChild(d);
-  }
-}
-
-function startRound(){
-  SND.click.play();
-  GAME = {
-    prize: Math.floor(Math.random()*3)+1,
-    choice: null,
-    opened: null,
-    finalChoice: null,
-    changed: null,
-    win: null
-  };
-  showScreen("screenPick");
-  $("#pickStatus").textContent = "Elegí una puerta…";
-  stageDoors("doors");
-
-  // click handler
-  $("#doors").onclick = e=>{
-    const d = e.target.closest(".door");
-    if(!d || GAME.choice) return;
-    GAME.choice = parseInt(d.dataset.idx,10);
-    SND.click.play();
-    $("#pickStatus").textContent = `Elegiste la puerta ${GAME.choice}. Esperá al presentador…`;
-
-    // Presentador: espera, piensa, abre una cabra
-    showScreen("screenHost");
-    $("#hostText").textContent="El presentador está pensando…";
-    setTimeout(()=>{
-      // abrir una puerta con cabra (no la elegida, no la del premio)
-      const candidates = [1,2,3].filter(i=> i!==GAME.choice && i!==GAME.prize);
-      GAME.opened = candidates[Math.floor(Math.random()*candidates.length)];
-      $("#hostText").textContent=`El presentador abre la puerta ${GAME.opened}… ¡hay una cabra 🐐!`;
-      try{ SND.goat.currentTime=0; SND.goat.play(); }catch{}
-      setTimeout(()=>{
-        // Mostrar la decisión
-        showScreen("screenDecision");
-        $("#decisionTitle").textContent=`¿Querés cambiar de la ${GAME.choice} a la otra puerta libre?`;
-      }, 1400);
-    }, 1400);
-  };
-}
-
-async function finalDecision(change){
-  GAME.changed = !!change;
-  SND.click.play();
-
-  // Determinar elección final
-  if(GAME.changed){
-    GAME.finalChoice = [1,2,3].find(i => i!==GAME.choice && i!==GAME.opened);
-  }else{
-    GAME.finalChoice = GAME.choice;
-  }
-  GAME.win = GAME.finalChoice === GAME.prize;
-
-  // Revelación con animación
-  showScreen("screenReveal");
-  stageDoors("revealDoors"); // primero cerradas
-  setTimeout(()=>{
-    stageDoors("revealDoors", GAME.finalChoice, GAME.prize);
-    if(GAME.win){
-      try{ SND.engine.currentTime=0; SND.engine.play(); setTimeout(()=>SND.fanfare.play(),400); setTimeout(()=>SND.clap.play(),900);}catch{}
-      $("#finalMsg").className="result ok";
-      $("#finalMsg").textContent="🎉 ¡Ganaste el AUTO!";
-    }else{
-      try{ SND.goat.currentTime=0; SND.goat.play(); setTimeout(()=>SND.trombone.play(),500);}catch{}
-      $("#finalMsg").className="result bad";
-      $("#finalMsg").textContent=`❌ Era una cabra. El premio estaba en la puerta ${GAME.prize}.`;
-    }
-  }, 900);
-
-  // Registrar en hoja
-  const g = CURRENT.game, player = CURRENT.playerCode;
-  await saveToSheet({
-    action:"play", Accion:"PLAY", Rol:"Jugador", FechaRegistro:nowIso(),
-    CodigoJuego:g.gameCode, Cliente:g.clientName, CodigoInstructor:g.instructorCode,
-    Resultado: JSON.stringify({
-      player, group: (g.playerCodes[player]?.group)||null,
-      choice:GAME.choice, opened:GAME.opened, changed:GAME.changed, win:GAME.win
+async function crearPartida() {
+  const cliente = document.getElementById("cliente").value || "Cliente";
+  const codigoJuego = "J-" + Math.random().toString(36).substring(2,8).toUpperCase();
+  const codigoInstructor = "I-" + Math.random().toString(36).substring(2,8).toUpperCase();
+  const fecha = new Date().toISOString().split("T")[0];
+  const expira = new Date(Date.now() + 30*24*60*60*1000).toISOString().split("T")[0];
+  await fetch(API_URL, {
+    method: "POST",
+    body: JSON.stringify({
+      action: "save_game",
+      CodigoJuego: codigoJuego,
+      Cliente: cliente,
+      FechaCreacion: fecha,
+      FechaExpira: expira,
+      CodigoInstructor: codigoInstructor,
+      Resultado: ""
     })
   });
-
-  try{ SND.ambient.pause(); }catch{}
+  const urlJugador = location.origin + location.pathname + "?t=" + codigoJuego;
+  const urlInstructor = location.origin + location.pathname + "?role=instructor&t=" + codigoJuego + "&ci=" + codigoInstructor;
+  document.getElementById("links").innerHTML = `
+    <p><b>Link Jugadores:</b> <a href="${urlJugador}" target="_blank">${urlJugador}</a></p>
+    <p><b>Link Instructor:</b> <a href="${urlInstructor}" target="_blank">${urlInstructor}</a></p>
+  `;
+  showToast("Partida creada y guardada");
 }
 
-/* =========================
-   ARRANQUE
-========================= */
+// ===== INSTRUCTOR =====
+let autoRefresh = null;
+function renderInstructor() {
+  document.getElementById("app").innerHTML = `
+    <div class="card">
+      <h2>Instructor – Dashboard</h2>
+      <button class="btn" onclick="cargarDatos()">Cargar</button>
+      <button class="btn" onclick="toggleAuto()">Auto-refresh</button>
+      <button class="btn" onclick="exportCSV()">Exportar CSV</button>
+      <button class="btn" onclick="exportPDF()">Exportar PDF</button>
+      <div id="stats"></div>
+    </div>
+  `;
+}
+async function cargarDatos() {
+  const res = await fetch(API_URL + "?sheet=links");
+  const data = await res.json();
+  const rows = data.filter(r => r.CodigoJuego === token);
+  const gananCambio = rows.filter(r => r.Accion === "PLAY" && r.Resultado === "GANA_CAMBIO").length;
+  const gananSin = rows.filter(r => r.Accion === "PLAY" && r.Resultado === "GANA_SIN_CAMBIO").length;
+  const pierden = rows.filter(r => r.Accion === "PLAY" && r.Resultado.startsWith("PIERDE")).length;
+  document.getElementById("stats").innerHTML = `
+    <p>Ganaron cambiando: ${gananCambio}</p>
+    <p>Ganaron sin cambiar: ${gananSin}</p>
+    <p>Perdieron: ${pierden}</p>
+  `;
+}
+function toggleAuto() {
+  if (autoRefresh) {
+    clearInterval(autoRefresh); autoRefresh = null;
+    showToast("Auto-refresh apagado");
+  } else {
+    autoRefresh = setInterval(cargarDatos, 10000);
+    showToast("Auto-refresh encendido");
+  }
+}
+function exportCSV() {
+  fetch(API_URL + "?sheet=links").then(r=>r.json()).then(data=>{
+    const rows = data.filter(r => r.CodigoJuego === token);
+    const csv = "data:text/csv;charset=utf-8," + rows.map(r => Object.values(r).join(",")).join("\n");
+    const a = document.createElement("a");
+    a.href = encodeURI(csv); a.download = "resultados.csv"; a.click();
+  });
+}
+function exportPDF() {
+  fetch(API_URL + "?sheet=links").then(r=>r.json()).then(data=>{
+    const rows = data.filter(r => r.CodigoJuego === token);
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    doc.text("Resultados Monty Hall", 10, 10);
+    rows.forEach((r,i)=> doc.text(`${i+1}. ${r.Rol} ${r.Resultado}`, 10, 20+i*10));
+    doc.save("resultados.pdf");
+  });
+}
+
+// ===== JUGADOR =====
+function renderPlayer() {
+  document.getElementById("app").innerHTML = `
+    <div class="card">
+      <h2>Jugador – Dilema Monty Hall</h2>
+      <p>Elige una puerta</p>
+      <div id="doors"></div>
+    </div>
+  `;
+  const doorsDiv = document.getElementById("doors");
+  const car = Math.floor(Math.random()*3);
+  for(let i=0;i<3;i++) {
+    const d = document.createElement("div");
+    d.className="door"; d.textContent="Puerta "+(i+1);
+    d.onclick=()=>selectDoor(i,car,d);
+    doorsDiv.appendChild(d);
+  }
+}
+function selectDoor(choice, car, elem) {
+  elem.classList.add("open");
+  setTimeout(()=>{
+    const reveal = [0,1,2].find(x => x!==choice && x!==car);
+    document.querySelectorAll(".door")[reveal].classList.add("open");
+    playSound("goat");
+    setTimeout(()=>{
+      if(confirm("¿Quieres cambiar de puerta?")) {
+        choice = [0,1,2].find(x => x!==choice && x!==reveal);
+      }
+      const win = (choice===car);
+      if(win){ playSound("win"); showToast("¡Ganaste el auto!"); }
+      else { playSound("lose"); showToast("Cayó cabra"); }
+      fetch(API_URL,{
+        method:"POST",
+        body:JSON.stringify({
+          action:"play",
+          CodigoJuego:token,
+          Cliente:"Anon",
+          CodigoInstructor:"",
+          CodigoJugador:"P-"+Math.random().toString(36).substr(2,5),
+          Resultado: win ? (choice===car?"GANA_CAMBIO":"GANA_SIN_CAMBIO") : "PIERDE"
+        })
+      });
+    },1500);
+  },1000);
+}
+
+render();
 </script>
 </body>
 </html>
