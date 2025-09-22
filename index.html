@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Dilema Monty Hall</title>
   <style>
@@ -11,13 +11,14 @@
     .btn{padding:10px 16px;margin:6px;border:none;border-radius:8px;cursor:pointer;font-weight:bold}
     .btn-primary{background:#22d3ee;color:#000}
     .btn-secondary{background:#334155;color:#fff}
-    .btn:disabled{opacity:.5;cursor:not-allowed}
-    input,select{padding:8px;border-radius:8px;border:1px solid #334155;margin:4px;width:80%}
+    input{padding:8px;border-radius:8px;border:1px solid #334155;margin:4px;width:80%}
     .grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(120px,1fr))}
     .door{border:3px solid #334155;border-radius:8px;padding:20px;cursor:pointer;background:#0f172a}
     .door.open{background:#1e293b}
-    .hidden{display:none}
     .msg{margin:10px 0;font-size:18px;font-weight:bold}
+    table{width:100%;border-collapse:collapse;margin-top:15px}
+    th,td{border:1px solid #334155;padding:6px}
+    th{background:#0f172a}
   </style>
 </head>
 <body>
@@ -33,10 +34,10 @@
   <audio id="loseSound" src="Loses.wav"></audio>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbwIvlVxRrsZHotNHcTw4uNEN_cKQS_iPluDCfZPXiGZpB7V6AFG7huE7Uaj-JAwvuo/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbysZbpNri787On_dbstNIhaYnhBqw3y62sm9qUzsMugtAyWtTpELqOA3F6jk3xQL48/exec";
 const ADMIN_PASS = "9090";
 
-let S = { role:null, game:null, doors:[], choice:null, opened:null, finished:false };
+let S={role:null,game:null,doors:[],choice:null,opened:null,finished:false};
 
 function el(tag,props={},children=[]){
   const node=document.createElement(tag);
@@ -78,14 +79,13 @@ function viewAdmin(){
   const c=el("div",{class:"card"});
   c.append(el("h2",{},"Módulo Administrador"));
   const inpCliente=el("input",{placeholder:"Cliente"});
-  const inpGrupos=el("input",{type:"number",placeholder:"Cantidad de grupos (ej 3)",value:3});
+  const inpGrupos=el("input",{type:"number",placeholder:"Cantidad de grupos",value:3});
   const btn=el("button",{class:"btn btn-primary",onclick:()=>{
     const n=parseInt(inpGrupos.value)||3;
     const juego="J"+Date.now();
     const codInstructor="I"+Math.random().toString(36).slice(2,8).toUpperCase();
     let grupos=[];
     for(let i=1;i<=n;i++) grupos.push("G"+i+"-"+Math.random().toString(36).slice(2,6).toUpperCase());
-    // guardar en BD
     fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
       action:"SAVE_GAME",CodigoJuego:juego,Cliente:inpCliente.value,FechaCreacion:new Date().toISOString(),
       FechaExpira:new Date(Date.now()+30*86400000).toISOString(),CodigoInstructor:codInstructor,Resultado:""
@@ -94,19 +94,42 @@ function viewAdmin(){
     c.append(el("div",{},"Instructor: "+codInstructor));
     grupos.forEach(g=>{
       const link=location.origin+location.pathname+"?group="+g;
-      const box=el("div",{},["Grupo "+g+" → ",el("a",{href:link,target:"_blank"},link)]);
-      c.append(box);
+      c.append(el("div",{},["Grupo "+g+" → ",el("a",{href:link,target:"_blank"},link)]));
     });
   }},"Generar Partida");
   c.append(inpCliente,inpGrupos,btn);
   return c;
 }
 
-function viewInstructor(){
+async function viewInstructor(){
   const c=el("div",{class:"card"});
   c.append(el("h2",{},"Vista Instructor"));
   c.append(el("div",{},"Código: "+S.instructorCode));
-  c.append(el("p",{},"Aquí podrás ver en el futuro el estado de grupos y resultados."));
+  try{
+    const res=await fetch(API_URL+"?sheet=dashboard");
+    const data=await res.json();
+    const table=el("table");
+    table.append(el("tr",{},[
+      el("th",{},"Juego"),el("th",{},"Cliente"),
+      el("th",{},"Total"),el("th",{},"Switch"),el("th",{},"Switch ✓"),el("th",{},"Switch ✗"),
+      el("th",{},"Stay"),el("th",{},"Stay ✓"),el("th",{},"Stay ✗"),
+      el("th",{},"Tasa Switch"),el("th",{},"Tasa Stay")
+    ]));
+    data.forEach(r=>{
+      if(r.CodigoJuego){
+        table.append(el("tr",{},[
+          el("td",{},r.CodigoJuego), el("td",{},r.Cliente),
+          el("td",{},r.TotalJugadas), el("td",{},r.TotalSwitch), el("td",{},r.SwitchGanadas), el("td",{},r.SwitchPerdidas),
+          el("td",{},r.TotalStay), el("td",{},r.StayGanadas), el("td",{},r.StayPerdidas),
+          el("td",{}, (r.TasaExitoSwitch*100).toFixed(1)+"%"),
+          el("td",{}, (r.TasaExitoStay*100).toFixed(1)+"%")
+        ]));
+      }
+    });
+    c.append(table);
+  }catch(err){
+    c.append(el("div",{class:"msg"},"Error cargando dashboard: "+err));
+  }
   return c;
 }
 
@@ -132,7 +155,6 @@ function viewGame(){
     });
     c.append(grid);
   }else if(S.opened===null){
-    // presentador abre una cabra
     const avail=S.doors.map((d,i)=>(i!==S.choice && d==="goat")?i:null).filter(x=>x!==null);
     S.opened=avail[Math.floor(Math.random()*avail.length)];
     document.getElementById("goatSound").play();
@@ -157,7 +179,7 @@ function finalize(newChoice){
   if(win){document.getElementById("carSound").play();document.getElementById("winSound").play();}
   else {document.getElementById("goatSound").play();document.getElementById("loseSound").play();}
   fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
-    action:"PLAY",CodigoJuego:"",Cliente:"",CodigoInstructor:"",CodigoGrupo:S.groupCode||"",
+    action:"PLAY",CodigoJuego:"",Cliente:"",CodigoInstructor:S.instructorCode||"",CodigoGrupo:S.groupCode||"",
     Resultado: win?"WIN":"LOSE",Observacion:strategy
   })});
   render();
