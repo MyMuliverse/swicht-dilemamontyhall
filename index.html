@@ -2,222 +2,165 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dilema Monty Hall – Simulador</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Dilema Monty Hall</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #0f172a;
-      color: #e5e7eb;
-      margin: 0;
-      padding: 0;
-    }
-    .container { max-width: 1000px; margin: auto; padding: 20px; }
-    .card {
-      background: #111827;
-      padding: 20px;
-      border-radius: 12px;
-      margin-bottom: 20px;
-    }
-    .btn {
-      background: #22d3ee;
-      border: none;
-      padding: 10px 16px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: bold;
-      margin: 4px;
-    }
-    .btn:hover { background: #06b6d4; }
-    .door {
-      width: 120px; height: 180px;
-      background: brown; border: 4px solid #5a3b2e;
-      border-radius: 6px;
-      display: inline-flex; align-items: center; justify-content: center;
-      margin: 10px; color: #fff; font-weight: bold; cursor: pointer;
-      transition: transform .5s;
-    }
-    .door.open { transform: rotateY(160deg); background: #333; }
-    .toast {
-      position: fixed; bottom: 20px; right: 20px;
-      background: #22c55e; color: #fff; padding: 10px 20px;
-      border-radius: 8px; opacity: 0; transition: opacity .5s;
-    }
-    .toast.show { opacity: 1; }
+    body{margin:0;font-family:Arial,Helvetica,sans-serif;background:#0f172a;color:#e5e7eb;text-align:center}
+    .container{max-width:900px;margin:0 auto;padding:20px}
+    .card{background:#1e293b;border-radius:12px;padding:20px;margin:10px}
+    .btn{padding:10px 16px;margin:6px;border:none;border-radius:8px;cursor:pointer;font-weight:bold}
+    .btn-primary{background:#22d3ee;color:#000}
+    .btn-secondary{background:#334155;color:#fff}
+    .btn:disabled{opacity:.5;cursor:not-allowed}
+    input,select{padding:8px;border-radius:8px;border:1px solid #334155;margin:4px;width:80%}
+    .grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(120px,1fr))}
+    .door{border:3px solid #334155;border-radius:8px;padding:20px;cursor:pointer;background:#0f172a}
+    .door.open{background:#1e293b}
+    .hidden{display:none}
+    .msg{margin:10px 0;font-size:18px;font-weight:bold}
   </style>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
   <div class="container">
+    <h1>Dilema Monty Hall</h1>
     <div id="app"></div>
   </div>
-  <div id="toast" class="toast"></div>
+
+  <!-- sonidos -->
+  <audio id="goatSound" src="Goat.wav"></audio>
+  <audio id="carSound" src="Car.wav"></audio>
+  <audio id="winSound" src="Win.wav"></audio>
+  <audio id="loseSound" src="Loses.wav"></audio>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbwWuYxxl4-PcGvlNPXF1J3al2Ch2OAbq6m369jcTeHQ6tbZjflyMhLR62G1aYZlPkA/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbwIvlVxRrsZHotNHcTw4uNEN_cKQS_iPluDCfZPXiGZpB7V6AFG7huE7Uaj-JAwvuo/exec";
+const ADMIN_PASS = "9090";
 
-// 🎧 sonidos
-function playSound(name) {
-  const audio = new Audio(`assets/sounds/${name}.mp3`);
-  audio.play();
-}
+let S = { role:null, game:null, doors:[], choice:null, opened:null, finished:false };
 
-// 🔔 toast
-function showToast(msg) {
-  const t = document.getElementById("toast");
-  t.textContent = msg;
-  t.classList.add("show");
-  setTimeout(() => t.classList.remove("show"), 2000);
-}
-
-// rol segun query
-const params = new URLSearchParams(location.search);
-const role = params.get("role") || "player";
-const token = params.get("t") || "";
-
-function render() {
-  if (role === "admin") return renderAdmin();
-  if (role === "instructor") return renderInstructor();
-  return renderPlayer();
-}
-
-// ===== ADMIN =====
-function renderAdmin() {
-  document.getElementById("app").innerHTML = `
-    <div class="card">
-      <h2>Administrador</h2>
-      <input id="cliente" placeholder="Cliente" class="input"/>
-      <button class="btn" onclick="crearPartida()">Crear partida</button>
-      <div id="links"></div>
-    </div>
-  `;
-}
-async function crearPartida() {
-  const cliente = document.getElementById("cliente").value || "Cliente";
-  const codigoJuego = "J-" + Math.random().toString(36).substring(2,8).toUpperCase();
-  const codigoInstructor = "I-" + Math.random().toString(36).substring(2,8).toUpperCase();
-  const fecha = new Date().toISOString().split("T")[0];
-  const expira = new Date(Date.now() + 30*24*60*60*1000).toISOString().split("T")[0];
-  await fetch(API_URL, {
-    method: "POST",
-    body: JSON.stringify({
-      action: "save_game",
-      CodigoJuego: codigoJuego,
-      Cliente: cliente,
-      FechaCreacion: fecha,
-      FechaExpira: expira,
-      CodigoInstructor: codigoInstructor,
-      Resultado: ""
-    })
-  });
-  const urlJugador = location.origin + location.pathname + "?t=" + codigoJuego;
-  const urlInstructor = location.origin + location.pathname + "?role=instructor&t=" + codigoJuego + "&ci=" + codigoInstructor;
-  document.getElementById("links").innerHTML = `
-    <p><b>Link Jugadores:</b> <a href="${urlJugador}" target="_blank">${urlJugador}</a></p>
-    <p><b>Link Instructor:</b> <a href="${urlInstructor}" target="_blank">${urlInstructor}</a></p>
-  `;
-  showToast("Partida creada y guardada");
-}
-
-// ===== INSTRUCTOR =====
-let autoRefresh = null;
-function renderInstructor() {
-  document.getElementById("app").innerHTML = `
-    <div class="card">
-      <h2>Instructor – Dashboard</h2>
-      <button class="btn" onclick="cargarDatos()">Cargar</button>
-      <button class="btn" onclick="toggleAuto()">Auto-refresh</button>
-      <button class="btn" onclick="exportCSV()">Exportar CSV</button>
-      <button class="btn" onclick="exportPDF()">Exportar PDF</button>
-      <div id="stats"></div>
-    </div>
-  `;
-}
-async function cargarDatos() {
-  const res = await fetch(API_URL + "?sheet=links");
-  const data = await res.json();
-  const rows = data.filter(r => r.CodigoJuego === token);
-  const gananCambio = rows.filter(r => r.Accion === "PLAY" && r.Resultado === "GANA_CAMBIO").length;
-  const gananSin = rows.filter(r => r.Accion === "PLAY" && r.Resultado === "GANA_SIN_CAMBIO").length;
-  const pierden = rows.filter(r => r.Accion === "PLAY" && r.Resultado.startsWith("PIERDE")).length;
-  document.getElementById("stats").innerHTML = `
-    <p>Ganaron cambiando: ${gananCambio}</p>
-    <p>Ganaron sin cambiar: ${gananSin}</p>
-    <p>Perdieron: ${pierden}</p>
-  `;
-}
-function toggleAuto() {
-  if (autoRefresh) {
-    clearInterval(autoRefresh); autoRefresh = null;
-    showToast("Auto-refresh apagado");
-  } else {
-    autoRefresh = setInterval(cargarDatos, 10000);
-    showToast("Auto-refresh encendido");
+function el(tag,props={},children=[]){
+  const node=document.createElement(tag);
+  for(const k in props){
+    if(k==="class") node.className=props[k];
+    else if(k.startsWith("on")) node[k]=props[k];
+    else node.setAttribute(k,props[k]);
   }
-}
-function exportCSV() {
-  fetch(API_URL + "?sheet=links").then(r=>r.json()).then(data=>{
-    const rows = data.filter(r => r.CodigoJuego === token);
-    const csv = "data:text/csv;charset=utf-8," + rows.map(r => Object.values(r).join(",")).join("\n");
-    const a = document.createElement("a");
-    a.href = encodeURI(csv); a.download = "resultados.csv"; a.click();
+  (Array.isArray(children)?children:[children]).forEach(ch=>{
+    node.append(ch.nodeType?ch:document.createTextNode(ch));
   });
-}
-function exportPDF() {
-  fetch(API_URL + "?sheet=links").then(r=>r.json()).then(data=>{
-    const rows = data.filter(r => r.CodigoJuego === token);
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    doc.text("Resultados Monty Hall", 10, 10);
-    rows.forEach((r,i)=> doc.text(`${i+1}. ${r.Rol} ${r.Resultado}`, 10, 20+i*10));
-    doc.save("resultados.pdf");
-  });
+  return node;
 }
 
-// ===== JUGADOR =====
-function renderPlayer() {
-  document.getElementById("app").innerHTML = `
-    <div class="card">
-      <h2>Jugador – Dilema Monty Hall</h2>
-      <p>Elige una puerta</p>
-      <div id="doors"></div>
-    </div>
-  `;
-  const doorsDiv = document.getElementById("doors");
-  const car = Math.floor(Math.random()*3);
-  for(let i=0;i<3;i++) {
-    const d = document.createElement("div");
-    d.className="door"; d.textContent="Puerta "+(i+1);
-    d.onclick=()=>selectDoor(i,car,d);
-    doorsDiv.appendChild(d);
-  }
+function render(){
+  const app=document.getElementById("app"); app.innerHTML="";
+  if(!S.role) return app.append(viewLogin());
+  if(S.role==="admin") return app.append(viewAdmin());
+  if(S.role==="instructor") return app.append(viewInstructor());
+  if(S.role==="player") return app.append(viewGame());
 }
-function selectDoor(choice, car, elem) {
-  elem.classList.add("open");
-  setTimeout(()=>{
-    const reveal = [0,1,2].find(x => x!==choice && x!==car);
-    document.querySelectorAll(".door")[reveal].classList.add("open");
-    playSound("goat");
-    setTimeout(()=>{
-      if(confirm("¿Quieres cambiar de puerta?")) {
-        choice = [0,1,2].find(x => x!==choice && x!==reveal);
-      }
-      const win = (choice===car);
-      if(win){ playSound("win"); showToast("¡Ganaste el auto!"); }
-      else { playSound("lose"); showToast("Cayó cabra"); }
-      fetch(API_URL,{
-        method:"POST",
-        body:JSON.stringify({
-          action:"play",
-          CodigoJuego:token,
-          Cliente:"Anon",
-          CodigoInstructor:"",
-          CodigoJugador:"P-"+Math.random().toString(36).substr(2,5),
-          Resultado: win ? (choice===car?"GANA_CAMBIO":"GANA_SIN_CAMBIO") : "PIERDE"
-        })
-      });
-    },1500);
-  },1000);
+
+function viewLogin(){
+  const c=el("div",{class:"card"});
+  c.append(el("h2",{},"Seleccionar rol"));
+  const passInput=el("input",{type:"password",placeholder:"Clave"});
+  const btnA=el("button",{class:"btn btn-primary",onclick:()=>{
+    if(passInput.value===ADMIN_PASS){ S.role="admin"; render(); }
+    else alert("Clave inválida");
+  }},"Administrador");
+  const codeInput=el("input",{placeholder:"Código Instructor/Jugador"});
+  const btnI=el("button",{class:"btn btn-secondary",onclick:()=>{S.role="instructor";S.instructorCode=codeInput.value;render();}},"Instructor");
+  const btnP=el("button",{class:"btn btn-secondary",onclick:()=>{S.role="player";S.groupCode=codeInput.value;startGame();render();}},"Jugador");
+  c.append(passInput,btnA,el("hr"),codeInput,btnI,btnP);
+  return c;
+}
+
+function viewAdmin(){
+  const c=el("div",{class:"card"});
+  c.append(el("h2",{},"Módulo Administrador"));
+  const inpCliente=el("input",{placeholder:"Cliente"});
+  const inpGrupos=el("input",{type:"number",placeholder:"Cantidad de grupos (ej 3)",value:3});
+  const btn=el("button",{class:"btn btn-primary",onclick:()=>{
+    const n=parseInt(inpGrupos.value)||3;
+    const juego="J"+Date.now();
+    const codInstructor="I"+Math.random().toString(36).slice(2,8).toUpperCase();
+    let grupos=[];
+    for(let i=1;i<=n;i++) grupos.push("G"+i+"-"+Math.random().toString(36).slice(2,6).toUpperCase());
+    // guardar en BD
+    fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+      action:"SAVE_GAME",CodigoJuego:juego,Cliente:inpCliente.value,FechaCreacion:new Date().toISOString(),
+      FechaExpira:new Date(Date.now()+30*86400000).toISOString(),CodigoInstructor:codInstructor,Resultado:""
+    })});
+    c.append(el("div",{class:"msg"},"Links generados:"));
+    c.append(el("div",{},"Instructor: "+codInstructor));
+    grupos.forEach(g=>{
+      const link=location.origin+location.pathname+"?group="+g;
+      const box=el("div",{},["Grupo "+g+" → ",el("a",{href:link,target:"_blank"},link)]);
+      c.append(box);
+    });
+  }},"Generar Partida");
+  c.append(inpCliente,inpGrupos,btn);
+  return c;
+}
+
+function viewInstructor(){
+  const c=el("div",{class:"card"});
+  c.append(el("h2",{},"Vista Instructor"));
+  c.append(el("div",{},"Código: "+S.instructorCode));
+  c.append(el("p",{},"Aquí podrás ver en el futuro el estado de grupos y resultados."));
+  return c;
+}
+
+function startGame(){
+  S.doors=["goat","goat","car"];
+  S.doors.sort(()=>Math.random()-0.5);
+  S.choice=null; S.opened=null; S.finished=false;
+}
+
+function viewGame(){
+  const c=el("div",{class:"card"});
+  c.append(el("h2",{},"Juego Monty Hall"));
+  if(S.finished){
+    const win=S.doors[S.choice]==="car";
+    c.append(el("div",{class:"msg"}, win?"Ganaste el auto! 🚗":"Perdiste, era una cabra 🐐"));
+    return c;
+  }
+  if(S.choice===null){
+    c.append(el("p",{},"Elige una puerta:"));
+    const grid=el("div",{class:"grid"});
+    S.doors.forEach((_,i)=>{
+      grid.append(el("div",{class:"door",onclick:()=>{S.choice=i;render();}},"Puerta "+(i+1)));
+    });
+    c.append(grid);
+  }else if(S.opened===null){
+    // presentador abre una cabra
+    const avail=S.doors.map((d,i)=>(i!==S.choice && d==="goat")?i:null).filter(x=>x!==null);
+    S.opened=avail[Math.floor(Math.random()*avail.length)];
+    document.getElementById("goatSound").play();
+    render();
+  }else{
+    const grid=el("div",{class:"grid"});
+    S.doors.forEach((d,i)=>{
+      let text="Puerta "+(i+1);
+      if(i===S.opened) text="🐐";
+      grid.append(el("div",{class:"door open",onclick:()=>{ if(i!==S.opened) finalize(i); }},text));
+    });
+    c.append(el("p",{},"¿Te quedás (Stay) o cambiás (Switch)? Hacé click en una puerta."));
+    c.append(grid);
+  }
+  return c;
+}
+
+function finalize(newChoice){
+  const strategy = (newChoice===S.choice)?"stay":"switch";
+  S.choice=newChoice; S.finished=true;
+  const win=S.doors[S.choice]==="car";
+  if(win){document.getElementById("carSound").play();document.getElementById("winSound").play();}
+  else {document.getElementById("goatSound").play();document.getElementById("loseSound").play();}
+  fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+    action:"PLAY",CodigoJuego:"",Cliente:"",CodigoInstructor:"",CodigoGrupo:S.groupCode||"",
+    Resultado: win?"WIN":"LOSE",Observacion:strategy
+  })});
+  render();
 }
 
 render();
