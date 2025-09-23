@@ -2,164 +2,144 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dilema Monty Hall</title>
   <style>
-    body { margin:0; font-family:Arial, sans-serif; background:#0f172a; color:white; text-align:center; }
-    h1 { margin-top:30px; }
-    .card { background:#1e293b; margin:20px auto; padding:20px; border-radius:12px; max-width:500px; box-shadow:0 4px 10px rgba(0,0,0,0.5); }
-    input, button { padding:10px; margin:8px; border-radius:6px; border:none; }
-    button { cursor:pointer; font-weight:bold; }
-    .btn-admin { background:#06b6d4; color:white; }
-    .btn-instructor { background:#64748b; color:white; }
-    .btn-jugador { background:#334155; color:white; }
-    .puertas { display:flex; justify-content:center; margin:20px 0; }
-    .puerta { width:100px; height:150px; background:#334155; margin:10px; display:flex; justify-content:center; align-items:center; font-size:24px; cursor:pointer; border-radius:8px; transition:0.3s; }
-    .puerta:hover { background:#475569; }
-    .noti { background:#22c55e; padding:8px; border-radius:6px; margin:10px auto; display:none; max-width:300px; }
-    table { width:100%; margin-top:15px; border-collapse:collapse; }
-    th, td { padding:8px; border-bottom:1px solid #475569; }
+    body { font-family: Arial, sans-serif; background: #0f1624; color: #fff; text-align: center; margin:0; padding:0; }
+    .card { background:#1c2333; padding:20px; border-radius:12px; margin:30px auto; width:90%; max-width:500px; box-shadow:0 4px 10px rgba(0,0,0,.6);}
+    button { background:#00bfff; border:none; color:white; padding:10px 20px; border-radius:6px; margin-top:15px; cursor:pointer; font-weight:bold; }
+    button:hover{ background:#0099cc; }
+    input { padding:10px; border-radius:6px; border:none; width:80%; margin:5px auto; display:block; }
+    .door { display:inline-block; width:100px; height:160px; margin:15px; background:#2e3b55; border-radius:8px; position:relative; cursor:pointer; font-size:22px; font-weight:bold; color:#fff; line-height:160px; }
+    .hidden { display:none; }
+    .result { font-size:20px; margin-top:20px; font-weight:bold; }
   </style>
 </head>
 <body>
+  <h1>Dilema Monty Hall</h1>
+  <div id="app"></div>
 
-<h1>Dilema Monty Hall</h1>
-<div id="app"></div>
+  <!-- sonidos cortos -->
+  <audio id="goatSound" src="Goat.wav"></audio>
+  <audio id="carSound" src="Car.wav"></audio>
 
-<script>
-const API_URL = "https://script.google.com/macros/s/AKfycbz9-f1GUGlC8vuegt4ci3gXlGJ4QLqlUruj_CEQ0Jesl0qa0xCrskDzBQEmO1V8ckk/exec";
-const urlParams = new URLSearchParams(window.location.search);
-const role = urlParams.get("role");
-const code = urlParams.get("code");
-const group = urlParams.get("group");
+  <script>
+  const API_URL = "https://script.google.com/macros/s/AKfycbyi16hTRyosSnN6rEq1--3Mg72Dnw67nW5XlP1FpsLXudjgWJBV85RjpMQTV1eGnIs/exec";
+  const app = document.getElementById("app");
 
-// ---------- Vista Inicial ----------
-function renderInicio(){
-  document.getElementById("app").innerHTML = `
-    <div class="card">
-      <h2>Bienvenido</h2>
-      <p>Este simulador requiere un link válido.</p>
-    </div>`;
-}
-
-// ---------- Admin ----------
-function renderAdmin(){
-  document.getElementById("app").innerHTML = `
-    <div class="card">
-      <h2>Módulo Administrador</h2>
-      <input id="cliente" placeholder="Nombre Cliente"><br>
-      <input id="grupos" type="number" min="1" max="10" placeholder="Cantidad de grupos"><br>
-      <button class="btn-admin" onclick="generarPartidas()">Generar Links</button>
-      <div id="links"></div>
-      <div id="noti" class="noti"></div>
-    </div>`;
-}
-
-async function generarPartidas(){
-  const cliente = document.getElementById("cliente").value;
-  const grupos = parseInt(document.getElementById("grupos").value)||1;
-  let out = "";
-  for(let g=1; g<=grupos; g++){
-    const juego = "J-"+Math.random().toString(36).substr(2,5).toUpperCase();
-    const instr = "I-"+Math.random().toString(36).substr(2,5).toUpperCase();
-    const fecha = new Date();
-    const expira = new Date(Date.now()+30*24*60*60*1000);
-    // Guardar
-    await fetch(API_URL,{method:"POST",body:JSON.stringify({
-      action:"SAVE_GAME",CodigoJuego:juego,Cliente:cliente,Grupo:g,
-      FechaCreacion:fecha,FechaExpira:expira,CodigoInstructor:instr
-    })});
-    // Links
-    const lInstr = `${location.origin}${location.pathname}?role=instructor&code=${instr}&group=${g}&juego=${juego}`;
-    const lJug = `${location.origin}${location.pathname}?role=jugador&group=${g}&juego=${juego}`;
-    out += `<p><b>Grupo ${g}</b><br>
-      Instructor: <a href="${lInstr}" target="_blank">${lInstr}</a><br>
-      Jugadores: <a href="${lJug}" target="_blank">${lJug}</a>
-      <button onclick="copiar('${lJug}')">Copiar Jugadores</button>
-    </p>`;
+  // ================= UTILS ==================
+  function copyToClipboard(text){ navigator.clipboard.writeText(text); alert("Link copiado:\n"+text); }
+  async function post(data){ 
+    const res = await fetch(API_URL,{method:"POST",body:JSON.stringify(data)});
+    return res.json();
   }
-  document.getElementById("links").innerHTML = out;
-}
+  async function getDash(){
+    const res = await fetch(API_URL);
+    return res.json();
+  }
 
-function copiar(txt){
-  navigator.clipboard.writeText(txt);
-  const n = document.getElementById("noti");
-  n.innerText="✅ Link copiado";
-  n.style.display="block";
-  setTimeout(()=>n.style.display="none",2000);
-}
+  // ============= PANTALLA ADMIN =============
+  function adminView(){
+    app.innerHTML = `
+      <div class="card">
+        <h2>Módulo Administrador</h2>
+        <input id="cliente" placeholder="Nombre del cliente">
+        <input id="grupos" type="number" min="1" max="10" placeholder="Cantidad de grupos (1-10)">
+        <button onclick="generarLinks()">Generar Partida</button>
+        <div id="links"></div>
+      </div>`;
+  }
 
-// ---------- Jugador ----------
-function renderJugador(){
-  document.getElementById("app").innerHTML = `
-    <div class="card">
-      <h2>Elige una puerta</h2>
-      <div class="puertas">
-        <div class="puerta" onclick="jugar(1)">1</div>
-        <div class="puerta" onclick="jugar(2)">2</div>
-        <div class="puerta" onclick="jugar(3)">3</div>
-      </div>
-      <div id="resultado"></div>
-    </div>`;
-}
+  async function generarLinks(){
+    const cliente = document.getElementById("cliente").value;
+    const grupos = parseInt(document.getElementById("grupos").value||"0");
+    if(!cliente || grupos<1){ alert("Completa cliente y grupos"); return; }
 
-function jugar(sel){
-  const premio = Math.ceil(Math.random()*3);
-  let reveal;
-  do { reveal=Math.ceil(Math.random()*3); } while(reveal===sel||reveal===premio);
-  document.getElementById("resultado").innerHTML = `
-    <p>Se abre la puerta ${reveal} y aparece una cabra 🐐</p>
-    <button onclick="resolver(${sel},${premio},true)">Cambiar</button>
-    <button onclick="resolver(${sel},${premio},false)">Quedarme</button>`;
-}
+    const codigoJuego = "J-"+Math.random().toString(36).substr(2,5).toUpperCase();
+    const codigoInstructor = "I-"+Math.random().toString(36).substr(2,5).toUpperCase();
 
-function resolver(sel,premio,cambio){
-  let final = cambio ? [1,2,3].find(n=>n!==sel&&n!==premio) : sel;
-  let win = final===premio;
-  document.getElementById("resultado").innerHTML = win ? 
-    `<h3>🎉 Ganaste el Auto 🚗</h3>` : `<h3>😢 Te tocó una Cabra 🐐</h3>`;
-  fetch(API_URL,{method:"POST",body:JSON.stringify({
-    action:"PLAY",CodigoJuego:urlParams.get("juego"),Cliente:"X",
-    Grupo:group,Observacion:cambio?"switch":"stay",Resultado:win?"WIN":"LOSE"
-  })});
-}
+    await post({action:"SAVE_GAME",CodigoJuego:codigoJuego,Cliente:cliente,CodigoInstructor:codigoInstructor,FechaCreacion:new Date(),FechaExpira:"30d"});
 
-// ---------- Instructor ----------
-function renderInstructor(){
-  document.getElementById("app").innerHTML = `
-    <div class="card">
-      <h2>Dashboard Instructor</h2>
-      <p>Código: ${code}</p>
-      <div id="dash">Cargando...</div>
-    </div>`;
-  cargarDashboard();
-  setInterval(cargarDashboard,10000);
-}
+    let html = `<p><b>Links generados:</b></p>`;
+    html += `<p>Instructor: <button onclick="copyToClipboard('${location.origin+location.pathname}?role=instructor&code=${codigoInstructor}')">Copiar</button></p>`;
+    for(let i=1;i<=grupos;i++){
+      const codigoGrupo="G"+i+"-"+Math.random().toString(36).substr(2,4).toUpperCase();
+      html += `<p>Grupo ${i}: <button onclick="copyToClipboard('${location.origin+location.pathname}?role=jugador&grupo=${codigoGrupo}&juego=${codigoJuego}&cliente=${cliente}')">Copiar</button></p>`;
+    }
+    document.getElementById("links").innerHTML=html;
+  }
 
-async function cargarDashboard(){
-  const res = await fetch(API_URL);
-  const data = await res.json();
-  if(!data.ok) return;
-  const juegos = data.data.filter(r=>r.CodigoJuego===urlParams.get("juego") && r.Grupo==group);
-  if(juegos.length===0){ document.getElementById("dash").innerHTML="Sin datos"; return;}
-  const j = juegos[0];
-  document.getElementById("dash").innerHTML=`
-    <table>
-      <tr><th>Total Jugadas</th><td>${j.TotalJugadas}</td></tr>
-      <tr><th>Switch Ganadas</th><td>${j.SwitchGanadas}</td></tr>
-      <tr><th>Switch Perdidas</th><td>${j.SwitchPerdidas}</td></tr>
-      <tr><th>Stay Ganadas</th><td>${j.StayGanadas}</td></tr>
-      <tr><th>Stay Perdidas</th><td>${j.StayPerdidas}</td></tr>
-      <tr><th>Tasa Éxito Switch</th><td>${(j.TasaExitoSwitch*100).toFixed(1)}%</td></tr>
-      <tr><th>Tasa Éxito Stay</th><td>${(j.TasaExitoStay*100).toFixed(1)}%</td></tr>
-    </table>`;
-}
+  // ============= PANTALLA INSTRUCTOR ============
+  function instructorView(code){
+    app.innerHTML=`
+      <div class="card">
+        <h2>Dashboard Instructor</h2>
+        <p>Código: ${code}</p>
+        <div id="dash">Cargando...</div>
+      </div>`;
+    cargarDash();
+    setInterval(cargarDash,10000);
+  }
+  async function cargarDash(){
+    const d = await getDash();
+    if(!d.ok){ document.getElementById("dash").innerHTML="Error cargando dashboard"; return; }
+    let html="<table border=1 style='width:100%;color:#fff;'>";
+    html+="<tr><th>Juego</th><th>Grupo</th><th>Jugadas</th><th>Switch %</th><th>Stay %</th></tr>";
+    d.data.forEach(r=>{
+      html+=`<tr><td>${r.CodigoJuego}</td><td>${r.Grupo}</td><td>${r.TotalJugadas}</td>
+             <td>${(r.TasaExitoSwitch*100).toFixed(1)}%</td><td>${(r.TasaExitoStay*100).toFixed(1)}%</td></tr>`;
+    });
+    html+="</table>";
+    document.getElementById("dash").innerHTML=html;
+  }
 
-// ---------- Router ----------
-if(role==="admin"){ renderAdmin(); }
-else if(role==="jugador"){ renderJugador(); }
-else if(role==="instructor"){ renderInstructor(); }
-else { renderInicio(); }
-</script>
+  // ============= PANTALLA JUGADOR =============
+  let selectedDoor=null, prizeDoor=null, revealedDoor=null, ronda=0;
+  function jugadorView(grupo,juego,cliente){
+    app.innerHTML=`
+      <div class="card">
+        <h2>Jugador - Grupo ${grupo}</h2>
+        <div id="doors"></div>
+        <div id="status" class="result"></div>
+      </div>`;
+    startRound(grupo,juego,cliente);
+  }
+
+  function startRound(grupo,juego,cliente){
+    ronda++;
+    selectedDoor=null; revealedDoor=null;
+    prizeDoor=Math.floor(Math.random()*3)+1;
+    document.getElementById("doors").innerHTML=[1,2,3].map(n=>`<div class='door' onclick='chooseDoor(${n},"${grupo}","${juego}","${cliente}")'>${n}</div>`).join("");
+    document.getElementById("status").innerText="Elige una puerta (Ronda "+ronda+")";
+  }
+
+  function chooseDoor(n,grupo,juego,cliente){
+    if(selectedDoor) return;
+    selectedDoor=n;
+    // revelar cabra
+    let opts=[1,2,3].filter(x=>x!==selectedDoor && x!==prizeDoor);
+    revealedDoor=opts[Math.floor(Math.random()*opts.length)];
+    document.querySelectorAll(".door")[revealedDoor-1].style.background="#555";
+    document.getElementById("status").innerText=`Se abrió la puerta ${revealedDoor} con una cabra 🐐. ¿Quieres cambiar?`;
+    setTimeout(()=>resolveChoice(grupo,juego,cliente),5000);
+  }
+
+  async function resolveChoice(grupo,juego,cliente){
+    let finalChoice = Math.random()<0.5 ? selectedDoor : [1,2,3].find(x=>x!==selectedDoor&&x!==revealedDoor);
+    let obs = finalChoice===selectedDoor? "stay":"switch";
+    let result = finalChoice===prizeDoor? "WIN":"LOSE";
+
+    if(result==="WIN"){ document.getElementById("status").innerText="🚗 ¡Ganaste el auto!"; document.getElementById("carSound").play(); }
+    else { document.getElementById("status").innerText="🐐 Te tocó cabra"; document.getElementById("goatSound").play(); }
+
+    await post({action:"PLAY",CodigoJuego:juego,Cliente:cliente,Grupo:grupo,Observacion:obs,Resultado:result,Ronda:ronda});
+    setTimeout(()=>startRound(grupo,juego,cliente),5000);
+  }
+
+  // ============= ROUTER =================
+  const p=new URLSearchParams(location.search);
+  if(p.get("role")==="instructor" && p.get("code")) instructorView(p.get("code"));
+  else if(p.get("role")==="jugador" && p.get("grupo")) jugadorView(p.get("grupo"),p.get("juego"),p.get("cliente"));
+  else adminView();
+  </script>
 </body>
 </html>
