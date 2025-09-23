@@ -2,144 +2,149 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dilema Monty Hall</title>
   <style>
-    body { font-family: Arial, sans-serif; background: #0f1624; color: #fff; text-align: center; margin:0; padding:0; }
-    .card { background:#1c2333; padding:20px; border-radius:12px; margin:30px auto; width:90%; max-width:500px; box-shadow:0 4px 10px rgba(0,0,0,.6);}
-    button { background:#00bfff; border:none; color:white; padding:10px 20px; border-radius:6px; margin-top:15px; cursor:pointer; font-weight:bold; }
-    button:hover{ background:#0099cc; }
-    input { padding:10px; border-radius:6px; border:none; width:80%; margin:5px auto; display:block; }
-    .door { display:inline-block; width:100px; height:160px; margin:15px; background:#2e3b55; border-radius:8px; position:relative; cursor:pointer; font-size:22px; font-weight:bold; color:#fff; line-height:160px; }
-    .hidden { display:none; }
-    .result { font-size:20px; margin-top:20px; font-weight:bold; }
+    body { font-family: Arial, sans-serif; background:#0f1626; color:#fff; text-align:center; }
+    .card { background:#1c2541; padding:20px; border-radius:10px; max-width:500px; margin:50px auto; box-shadow:0 0 15px rgba(0,0,0,0.5);}
+    input, button { padding:10px; margin:10px; border-radius:5px; border:none; font-size:16px;}
+    input { width:80%; }
+    button { cursor:pointer; font-weight:bold; }
+    .btn-primary { background:#00aaff; color:#fff; }
+    .btn-secondary { background:#444; color:#fff; }
+    .links { margin-top:20px; text-align:left; }
+    .links p { background:#222; padding:8px; border-radius:5px; font-size:14px; }
   </style>
 </head>
 <body>
-  <h1>Dilema Monty Hall</h1>
-  <div id="app"></div>
 
-  <!-- sonidos cortos -->
-  <audio id="goatSound" src="Goat.wav"></audio>
-  <audio id="carSound" src="Car.wav"></audio>
+  <h1>Dilema Monty Hall</h1>
+  <div id="app" class="card"></div>
 
   <script>
   const API_URL = "https://script.google.com/macros/s/AKfycbyi16hTRyosSnN6rEq1--3Mg72Dnw67nW5XlP1FpsLXudjgWJBV85RjpMQTV1eGnIs/exec";
-  const app = document.getElementById("app");
 
-  // ================= UTILS ==================
-  function copyToClipboard(text){ navigator.clipboard.writeText(text); alert("Link copiado:\n"+text); }
-  async function post(data){ 
-    const res = await fetch(API_URL,{method:"POST",body:JSON.stringify(data)});
-    return res.json();
-  }
-  async function getDash(){
-    const res = await fetch(API_URL);
-    return res.json();
-  }
+  // Detectar rol por URL
+  const params = new URLSearchParams(window.location.search);
+  const role = params.get("role");
+  const code = params.get("code");
 
-  // ============= PANTALLA ADMIN =============
-  function adminView(){
-    app.innerHTML = `
-      <div class="card">
-        <h2>Módulo Administrador</h2>
-        <input id="cliente" placeholder="Nombre del cliente">
-        <input id="grupos" type="number" min="1" max="10" placeholder="Cantidad de grupos (1-10)">
-        <button onclick="generarLinks()">Generar Partida</button>
-        <div id="links"></div>
-      </div>`;
-  }
+  if (!role) {
+    // Vista ADMIN
+    document.getElementById("app").innerHTML = `
+      <h2>Módulo Administrador</h2>
+      <form id="adminForm">
+        <input id="cliente" placeholder="Nombre del cliente" required><br>
+        <input id="grupos" type="number" min="1" max="10" placeholder="Cantidad de grupos (1-10)" required><br>
+        <button type="submit" class="btn-primary">Generar Partida</button>
+      </form>
+      <div id="links" class="links"></div>
+    `;
 
-  async function generarLinks(){
-    const cliente = document.getElementById("cliente").value;
-    const grupos = parseInt(document.getElementById("grupos").value||"0");
-    if(!cliente || grupos<1){ alert("Completa cliente y grupos"); return; }
+    document.getElementById("adminForm").addEventListener("submit", async (e)=>{
+      e.preventDefault();
+      const cliente = document.getElementById("cliente").value.trim();
+      const grupos = parseInt(document.getElementById("grupos").value);
 
-    const codigoJuego = "J-"+Math.random().toString(36).substr(2,5).toUpperCase();
-    const codigoInstructor = "I-"+Math.random().toString(36).substr(2,5).toUpperCase();
+      const payload = {
+        action:"SAVE_GAME",
+        CodigoJuego:"J-"+Math.random().toString(36).substring(2,8).toUpperCase(),
+        Cliente:cliente,
+        Grupo:"ALL",
+        FechaCreacion:new Date().toISOString(),
+        CodigoInstructor:"I-"+Math.random().toString(36).substring(2,8).toUpperCase(),
+        CodigoJugador:"P-"+Math.random().toString(36).substring(2,8).toUpperCase(),
+        Estado:"CREATED",
+        Ronda:0
+      };
 
-    await post({action:"SAVE_GAME",CodigoJuego:codigoJuego,Cliente:cliente,CodigoInstructor:codigoInstructor,FechaCreacion:new Date(),FechaExpira:"30d"});
+      const res = await fetch(API_URL,{method:"POST",body:JSON.stringify(payload)});
+      const data = await res.json();
 
-    let html = `<p><b>Links generados:</b></p>`;
-    html += `<p>Instructor: <button onclick="copyToClipboard('${location.origin+location.pathname}?role=instructor&code=${codigoInstructor}')">Copiar</button></p>`;
-    for(let i=1;i<=grupos;i++){
-      const codigoGrupo="G"+i+"-"+Math.random().toString(36).substr(2,4).toUpperCase();
-      html += `<p>Grupo ${i}: <button onclick="copyToClipboard('${location.origin+location.pathname}?role=jugador&grupo=${codigoGrupo}&juego=${codigoJuego}&cliente=${cliente}')">Copiar</button></p>`;
-    }
-    document.getElementById("links").innerHTML=html;
-  }
-
-  // ============= PANTALLA INSTRUCTOR ============
-  function instructorView(code){
-    app.innerHTML=`
-      <div class="card">
-        <h2>Dashboard Instructor</h2>
-        <p>Código: ${code}</p>
-        <div id="dash">Cargando...</div>
-      </div>`;
-    cargarDash();
-    setInterval(cargarDash,10000);
-  }
-  async function cargarDash(){
-    const d = await getDash();
-    if(!d.ok){ document.getElementById("dash").innerHTML="Error cargando dashboard"; return; }
-    let html="<table border=1 style='width:100%;color:#fff;'>";
-    html+="<tr><th>Juego</th><th>Grupo</th><th>Jugadas</th><th>Switch %</th><th>Stay %</th></tr>";
-    d.data.forEach(r=>{
-      html+=`<tr><td>${r.CodigoJuego}</td><td>${r.Grupo}</td><td>${r.TotalJugadas}</td>
-             <td>${(r.TasaExitoSwitch*100).toFixed(1)}%</td><td>${(r.TasaExitoStay*100).toFixed(1)}%</td></tr>`;
+      if(data.ok){
+        const linksDiv = document.getElementById("links");
+        linksDiv.innerHTML = `
+          <h3>Links generados:</h3>
+          <p><b>Instructor:</b> ${window.location.origin}${window.location.pathname}?role=instructor&code=${payload.CodigoInstructor}</p>
+          <p><b>Jugador:</b> ${window.location.origin}${window.location.pathname}?role=jugador&code=${payload.CodigoJugador}</p>
+        `;
+      }else{
+        alert("Error: "+data.error);
+      }
     });
-    html+="</table>";
-    document.getElementById("dash").innerHTML=html;
   }
 
-  // ============= PANTALLA JUGADOR =============
-  let selectedDoor=null, prizeDoor=null, revealedDoor=null, ronda=0;
-  function jugadorView(grupo,juego,cliente){
-    app.innerHTML=`
-      <div class="card">
-        <h2>Jugador - Grupo ${grupo}</h2>
-        <div id="doors"></div>
-        <div id="status" class="result"></div>
-      </div>`;
-    startRound(grupo,juego,cliente);
+  if (role==="instructor") {
+    // Vista INSTRUCTOR
+    document.getElementById("app").innerHTML = `
+      <h2>Dashboard Instructor</h2>
+      <p>Código: ${code}</p>
+      <div id="dash">Cargando...</div>
+    `;
+
+    async function loadDash(){
+      const res = await fetch(API_URL);
+      const data = await res.json();
+      if(data.ok){
+        let html = "<table border='1' style='width:100%;background:#222;'><tr>";
+        Object.keys(data.data[0]).forEach(h=> html+=`<th>${h}</th>`);
+        html+="</tr>";
+        data.data.forEach(r=>{
+          html+="<tr>";
+          for(const h in r){ html+=`<td>${r[h]}</td>`; }
+          html+="</tr>";
+        });
+        html+="</table>";
+        document.getElementById("dash").innerHTML=html;
+      }else{
+        document.getElementById("dash").innerText="Error cargando dashboard";
+      }
+    }
+    loadDash();
+    setInterval(loadDash,10000); // refresco automático
   }
 
-  function startRound(grupo,juego,cliente){
-    ronda++;
-    selectedDoor=null; revealedDoor=null;
-    prizeDoor=Math.floor(Math.random()*3)+1;
-    document.getElementById("doors").innerHTML=[1,2,3].map(n=>`<div class='door' onclick='chooseDoor(${n},"${grupo}","${juego}","${cliente}")'>${n}</div>`).join("");
-    document.getElementById("status").innerText="Elige una puerta (Ronda "+ronda+")";
+  if (role==="jugador") {
+    // Vista JUGADOR
+    document.getElementById("app").innerHTML = `
+      <h2>Partida - Jugador</h2>
+      <p>Código: ${code}</p>
+      <div id="game"></div>
+    `;
+
+    // Render simple de 3 puertas
+    const gameDiv=document.getElementById("game");
+    let ronda=0;
+
+    function renderGame(){
+      ronda++;
+      gameDiv.innerHTML=`
+        <p>Ronda ${ronda}</p>
+        <button class="btn-secondary" onclick="choose('stay')">Quedarse</button>
+        <button class="btn-primary" onclick="choose('switch')">Cambiar</button>
+      `;
+    }
+
+    window.choose = async (choice)=>{
+      const resultado = Math.random()<0.33 ? "WIN":"LOSE"; // simplificado
+      const payload = {
+        action:"PLAY",
+        CodigoJuego:"J-"+code,
+        Cliente:"Anon",
+        Grupo:"G1",
+        CodigoJugador:code,
+        Estado:"PLAYED",
+        Observacion:choice,
+        Resultado:resultado,
+        Ronda:ronda
+      };
+      await fetch(API_URL,{method:"POST",body:JSON.stringify(payload)});
+      alert(`Resultado: ${resultado}`);
+      setTimeout(renderGame,2000);
+    }
+
+    renderGame();
   }
-
-  function chooseDoor(n,grupo,juego,cliente){
-    if(selectedDoor) return;
-    selectedDoor=n;
-    // revelar cabra
-    let opts=[1,2,3].filter(x=>x!==selectedDoor && x!==prizeDoor);
-    revealedDoor=opts[Math.floor(Math.random()*opts.length)];
-    document.querySelectorAll(".door")[revealedDoor-1].style.background="#555";
-    document.getElementById("status").innerText=`Se abrió la puerta ${revealedDoor} con una cabra 🐐. ¿Quieres cambiar?`;
-    setTimeout(()=>resolveChoice(grupo,juego,cliente),5000);
-  }
-
-  async function resolveChoice(grupo,juego,cliente){
-    let finalChoice = Math.random()<0.5 ? selectedDoor : [1,2,3].find(x=>x!==selectedDoor&&x!==revealedDoor);
-    let obs = finalChoice===selectedDoor? "stay":"switch";
-    let result = finalChoice===prizeDoor? "WIN":"LOSE";
-
-    if(result==="WIN"){ document.getElementById("status").innerText="🚗 ¡Ganaste el auto!"; document.getElementById("carSound").play(); }
-    else { document.getElementById("status").innerText="🐐 Te tocó cabra"; document.getElementById("goatSound").play(); }
-
-    await post({action:"PLAY",CodigoJuego:juego,Cliente:cliente,Grupo:grupo,Observacion:obs,Resultado:result,Ronda:ronda});
-    setTimeout(()=>startRound(grupo,juego,cliente),5000);
-  }
-
-  // ============= ROUTER =================
-  const p=new URLSearchParams(location.search);
-  if(p.get("role")==="instructor" && p.get("code")) instructorView(p.get("code"));
-  else if(p.get("role")==="jugador" && p.get("grupo")) jugadorView(p.get("grupo"),p.get("juego"),p.get("cliente"));
-  else adminView();
   </script>
 </body>
 </html>
