@@ -1,199 +1,517 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <title>Dilema Monty Hall</title>
-  <style>
-    body { font-family: Arial, sans-serif; background: #f0f2f5; text-align: center; }
-    .screen { display: none; padding: 20px; }
-    .active { display: block; }
-    button { padding: 10px 20px; margin: 10px; cursor: pointer; border-radius: 5px; border: none; }
-    button:hover { opacity: 0.9; }
-    .link-box { margin: 10px; padding: 10px; background: #fff; border: 1px solid #ddd; border-radius: 5px; }
-    .message { color: green; font-weight: bold; margin-top: 10px; display:none; }
-    .doors { display: flex; justify-content: center; margin-top: 20px; }
-    .door { 
-      width: 120px; height: 180px; background: #6b4f2d; margin: 10px; 
-      border-radius: 8px; display:flex; align-items:center; justify-content:center; 
-      cursor:pointer; color:#fff; font-weight:bold; font-size:40px; 
-      box-shadow: 2px 2px 8px rgba(0,0,0,0.3);
-      transition: all 0.3s;
-    }
-    .door:hover { transform: scale(1.05); }
-    .hidden { visibility: hidden; }
-    #result { font-size: 28px; margin-top: 20px; font-weight: bold; }
-    table { border-collapse: collapse; margin: auto; margin-top:20px; background:#fff; }
-    th, td { border:1px solid #ccc; padding:8px; }
-    th { background:#eee; }
-  </style>
-</head>
-<body>
+/**************
+ * Monty Hall v4.0 PLUS (Sheets + Apps Script)
+ * Backend / Lógica / API server-side
+ * Autor: KIGer IA (para Carlos)
+ **************/
 
-<h1>🚪 Dilema Monty Hall</h1>
+// ======= CONFIG =======
+const DB_SPREADSHEET_NAME = 'MontyHall_DB';        // Cambiar si quieres
+const SHEET_ROOMS  = 'Rooms';
+const SHEET_TEAMS  = 'Teams';
+const SHEET_PLAYS  = 'Plays';
+const SHEET_EVENTS = 'Events'; // auditoría / anuncios
 
-<!-- Pantalla Login Admin -->
-<div id="admin-login" class="screen active">
-  <h2>Acceso Administrador</h2>
-  <input type="password" id="adminPass" placeholder="Clave administrador (9090)">
-  <button onclick="loginAdmin()">Entrar</button>
-</div>
+// Para firmar token de instructor (simple)
+const PROP_SALT_KEY = 'MH_SALT';
 
-<!-- Pantalla Admin -->
-<div id="admin-screen" class="screen">
-  <h2>Panel Administrador</h2>
-  <input id="cliente" placeholder="Nombre Cliente">
-  <button onclick="generarPartida()">Generar partida</button>
-  <div id="links"></div>
-</div>
+// i18n mínimo (ES por defecto, extensible)
+const I18N = {
+  es: {
+    appName: 'Simulador Monty Hall',
+    invalid: 'Solicitud inválida.',
+    notFound: 'No encontrado.',
+    roomClosed: 'La sala está cerrada.',
+  }
+};
 
-<!-- Pantalla Instructor -->
-<div id="instructor-screen" class="screen">
-  <h2>Vista Instructor</h2>
-  <div id="dashboard"></div>
-</div>
-
-<!-- Pantalla Jugador -->
-<div id="player-screen" class="screen">
-  <h2>Juego Monty Hall</h2>
-  <div id="round">Ronda: 0</div>
-  <div class="doors">
-    <div class="door" onclick="pickDoor(0)">🚪</div>
-    <div class="door" onclick="pickDoor(1)">🚪</div>
-    <div class="door" onclick="pickDoor(2)">🚪</div>
-  </div>
-  <div id="result"></div>
-</div>
-
-<script>
-const API = "https://script.google.com/macros/s/AKfycbztf9kWmQpVfWabRVviopzdDSQBAlyd5kRfhJxHIUsC2hA_C1jiHsqB_VqzxRQ9WKI/exec";
-let codigoJuego="", cliente="", grupo="G1", ronda=0;
-
-/************ ADMIN ************/
-function loginAdmin(){
-  const pass=document.getElementById("adminPass").value;
-  if(pass==="9090"){
-    show("admin-screen");
-  }else alert("Clave incorrecta");
+// ========= UTILIDADES =========
+function _ss() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss || ss.getName() !== DB_SPREADSHEET_NAME) {
+    const files = DriveApp.getFilesByName(DB_SPREADSHEET_NAME);
+    if (!files.hasNext()) throw new Error('No se encuentra la hoja "'+DB_SPREADSHEET_NAME+'".');
+    return SpreadsheetApp.open(files.next());
+  }
+  return ss;
 }
-function generarPartida(){
-  codigoJuego="J"+Date.now();
-  cliente=document.getElementById("cliente").value||"ClienteX";
-  const fecha=new Date().toISOString().split("T")[0];
-  const expira=new Date(Date.now()+30*24*60*60*1000).toISOString().split("T")[0];
-  const codInstructor="I"+Math.floor(Math.random()*10000);
-  // guardar en sheet
-  fetch(API,{method:"POST",body:JSON.stringify({
-    action:"SAVE_GAME",CodigoJuego:codigoJuego,Cliente:cliente,
-    Grupo:grupo,FechaCreacion:fecha,FechaExpira:expira,
-    CodigoInstructor:codInstructor
-  })});
-  // generar links
-  const instructorLink=window.location.href.split("?")[0]+"?role=instructor&game="+codigoJuego+"&cliente="+cliente+"&inst="+codInstructor;
-  const playerLink=window.location.href.split("?")[0]+"?role=player&game="+codigoJuego+"&cliente="+cliente+"&grupo="+grupo;
-  const box=document.getElementById("links");
-  box.innerHTML=`
-    <div class="link-box">
-      <b>Instructor:</b> <input value="${instructorLink}" id="instLink" size="50">
-      <button onclick="copyLink('instLink')">Copiar</button>
-      <div class="message" id="msgInst">¡Copiado!</div>
-    </div>
-    <div class="link-box">
-      <b>Jugadores:</b> <input value="${playerLink}" id="playLink" size="50">
-      <button onclick="copyLink('playLink')">Copiar</button>
-      <div class="message" id="msgPlay">¡Copiado!</div>
-    </div>`;
+function _sheet(name) {
+  const sh = _ss().getSheetByName(name);
+  if (!sh) throw new Error('Falta hoja: '+name);
+  return sh;
 }
-function copyLink(id){
-  const inp=document.getElementById(id);
-  inp.select(); document.execCommand("copy");
-  const msg=id==="instLink"?"msgInst":"msgPlay";
-  document.getElementById(msg).style.display="block";
-  setTimeout(()=>document.getElementById(msg).style.display="none",2000);
+function _nowISO() {
+  return new Date().toISOString();
 }
-
-/************ INSTRUCTOR ************/
-function loadDashboard(){
-  fetch(API)
-  .then(r=>r.json())
-  .then(d=>{
-    if(!d.ok) return;
-    let html="<table><tr><th>Juego</th><th>Cliente</th><th>Grupo</th><th>Total</th><th>Switch %</th><th>Stay %</th></tr>";
-    d.data.forEach(row=>{
-      html+=`<tr>
-        <td>${row.CodigoJuego}</td>
-        <td>${row.Cliente}</td>
-        <td>${row.Grupo}</td>
-        <td>${row.TotalJugadas}</td>
-        <td>${(row.TasaExitoSwitch*100).toFixed(1)}%</td>
-        <td>${(row.TasaExitoStay*100).toFixed(1)}%</td>
-      </tr>`;
-    });
-    html+="</table>";
-    document.getElementById("dashboard").innerHTML=html;
+function _uuid() {
+  // ID corto legible
+  const s4 = () => Math.floor((1 + Math.random()) * 0x10000).toString(36).substring(1);
+  return (s4()+s4()+s4()).toUpperCase();
+}
+function _slug(n) {
+  return String(n || '').trim()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-zA-Z0-9]+/g,'-').replace(/^-+|-+$/g,'')
+    .substring(0,40);
+}
+function _getSalt_() {
+  const props = PropertiesService.getScriptProperties();
+  let salt = props.getProperty(PROP_SALT_KEY);
+  if (!salt) {
+    salt = Utilities.getUuid();
+    props.setProperty(PROP_SALT_KEY, salt);
+  }
+  return salt;
+}
+function _signToken(roomId) {
+  const salt = _getSalt_();
+  return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(roomId, salt));
+}
+function _verifyToken(roomId, token) {
+  return _signToken(roomId) === token;
+}
+function _getBaseUrl_(e) {
+  // Intenta reconstruir baseURL desde la petición
+  const url = e && e['scriptUrl'];
+  if (url) return url;
+  // fallback: no confiable, se arma en el cliente con window.location
+  return '';
+}
+function _readSheet_(sh) {
+  const values = sh.getDataRange().getValues();
+  const headers = values.shift();
+  return values.map(r => {
+    const o = {};
+    headers.forEach((h,i)=>o[h]=r[i]);
+    return o;
   });
 }
-setInterval(()=>{ if(document.getElementById("instructor-screen").classList.contains("active")) loadDashboard(); },10000);
-
-/************ PLAYER ************/
-let chosen=null, prize=null, revealed=null;
-function startRound(){
-  ronda++;
-  document.getElementById("round").innerText="Ronda: "+ronda;
-  chosen=null; revealed=null; prize=Math.floor(Math.random()*3);
-  document.querySelectorAll(".door").forEach(d=>{d.innerText="🚪"; d.style.background="#6b4f2d";});
-  document.getElementById("result").innerText="";
+function _append_(sheetName, obj) {
+  const sh = _sheet(sheetName);
+  const headers = sh.getDataRange().getValues()[0];
+  const row = headers.map(h => (obj[h] !== undefined ? obj[h] : ''));
+  sh.appendRow(row);
 }
-function pickDoor(i){
-  if(chosen===null){
-    chosen=i;
-    // reveal a goat
-    do{ revealed=Math.floor(Math.random()*3);}while(revealed===prize||revealed===chosen);
-    document.querySelectorAll(".door")[revealed].innerText="🐐";
-    document.querySelectorAll(".door")[revealed].style.background="gray";
-    setTimeout(()=>askSwitch(),1500);
-  }
+function _findById_(sheetName, id) {
+  const sh = _sheet(sheetName);
+  const data = _readSheet_(sh);
+  return data.find(r => r.id === id);
 }
-function askSwitch(){
-  const c=confirm("¿Querés CAMBIAR de puerta?");
-  let finalChoice=chosen;
-  let observacion="stay";
-  if(c){
-    finalChoice=[0,1,2].find(x=>x!==chosen && x!==revealed);
-    observacion="switch";
+function _updateById_(sheetName, id, patch) {
+  const sh = _sheet(sheetName);
+  const values = sh.getDataRange().getValues();
+  const headers = values.shift();
+  const idIdx = headers.indexOf('id');
+  for (let r=0; r<values.length; r++) {
+    if (values[r][idIdx] === id) {
+      headers.forEach((h,i) => {
+        if (patch[h] !== undefined) values[r][i] = patch[h];
+      });
+      sh.getRange(r+2, 1, 1, headers.length).setValues([values[r]]);
+      return true;
+    }
   }
-  const result= finalChoice===prize ? "WIN":"LOSE";
-  document.getElementById("result").innerText=result==="WIN"?"🚗 ¡Ganaste un AUTO!":"🐐 Te tocó una CABRA";
-  // guardar jugada
-  fetch(API,{method:"POST",body:JSON.stringify({
-    action:"PLAY",CodigoJuego:codigoJuego,Cliente:cliente,Grupo:grupo,
-    Resultado:result,Observacion:observacion,Ronda:ronda
-  })});
-  setTimeout(startRound,3000);
+  return false;
+}
+function _query_(sheetName, predFn) {
+  return _readSheet_(_sheet(sheetName)).filter(predFn || (()=>true));
 }
 
-/************ UTILS ************/
-function show(id){
-  document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
-  document.getElementById(id).classList.add("active");
+// ======= SETUP (CREA HOJAS) =======
+function setup() {
+  let ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss || ss.getName() !== DB_SPREADSHEET_NAME) {
+    ss = SpreadsheetApp.create(DB_SPREADSHEET_NAME);
+  }
+  const ensure = (name, headers) => {
+    let sh = ss.getSheetByName(name);
+    if (!sh) sh = ss.insertSheet(name);
+    sh.clear();
+    sh.appendRow(headers);
+  };
+
+  ensure(SHEET_ROOMS,  ['id','orgName','workshopName','dateISO','createdAt','doorsCount','rounds','timeoutSec','modes','strategyMode','allowNewTeams','status','tokenHost']);
+  ensure(SHEET_TEAMS,  ['id','roomId','teamName','avatar','createdAt','wins','losses','streak','badgesJson']);
+  ensure(SHEET_PLAYS,  ['id','roomId','teamId','mode','doorsCount','prizeDoor','initialChoice','revealedDoorsJson','finalDecision','result','durationMs','createdAt']);
+  ensure(SHEET_EVENTS, ['id','roomId','type','payload','createdAt']);
+
+  // init salt
+  _getSalt_();
+  Logger.log('SETUP OK. DB: '+ss.getUrl());
 }
 
-/************ INIT ************/
-(function init(){
-  const params=new URLSearchParams(window.location.search);
-  const role=params.get("role");
-  if(role==="instructor"){
-    show("instructor-screen"); 
-    loadDashboard();
-  }else if(role==="player"){
-    codigoJuego=params.get("game"); 
-    cliente=params.get("cliente")||""; 
-    grupo=params.get("grupo")||"G1";
-    show("player-screen"); 
-    startRound();
-  }else{
-    show("admin-login");
+// ======= RUTEO HTML =======
+function doGet(e) {
+  // Adjunta la URL si es posible (para usar en la UI)
+  e = e || {};
+  e.scriptUrl = (e.parameter && e.parameter['scriptUrl']) || ''; // opcional
+
+  const view = (e.parameter && e.parameter.view) || 'admin'; // admin | play | host | screen
+  const t = HtmlService.createTemplateFromFile(capitalize(view));
+  t.query = e.parameter || {};
+  t.baseUrl = _getBaseUrl_(e);
+  t.i18n = I18N['es'];
+  return t.evaluate()
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+    .setTitle('Monty Hall v4.0 PLUS');
+}
+function include(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+function capitalize(s){return (s||'').charAt(0).toUpperCase()+s.slice(1).toLowerCase();}
+
+// ======= API: ROOMS =======
+function apiCreateRoom(payload) {
+  // payload: {orgName, workshopName, dateISO?, doorsCount, rounds, timeoutSec, modes, strategyMode }
+  if (!payload || !payload.orgName || !payload.workshopName) throw new Error('orgName / workshopName requeridos.');
+
+  const roomId = _slug(payload.orgName)+'-'+_slug(payload.workshopName)+'-'+_uuid().slice(-4);
+  const tokenHost = _signToken(roomId);
+
+  _append_(SHEET_ROOMS, {
+    id: roomId,
+    orgName: payload.orgName,
+    workshopName: payload.workshopName,
+    dateISO: payload.dateISO || _nowISO().substring(0,10),
+    createdAt: _nowISO(),
+    doorsCount: Number(payload.doorsCount || 3),
+    rounds: Number(payload.rounds || 0), // 0 = libre
+    timeoutSec: Number(payload.timeoutSec || 0),
+    modes: String(payload.modes || 'A,B'), // A=3 puertas, B=Monty
+    strategyMode: String(payload.strategyMode || 'free'), // free | fixed
+    allowNewTeams: 'true',
+    status: 'open',
+    tokenHost
+  });
+
+  return { roomId, tokenHost };
+}
+function apiGetRoomPublic(roomId) {
+  const room = _findById_(SHEET_ROOMS, roomId);
+  if (!room) throw new Error('Sala no encontrada.');
+  return {
+    id: room.id,
+    orgName: room.orgName,
+    workshopName: room.workshopName,
+    dateISO: room.dateISO,
+    doorsCount: Number(room.doorsCount),
+    rounds: Number(room.rounds),
+    timeoutSec: Number(room.timeoutSec),
+    modes: room.modes,
+    strategyMode: room.strategyMode,
+    allowNewTeams: room.allowNewTeams === 'true',
+    status: room.status
+  };
+}
+function apiToggleAllowTeams(roomId, token, allow) {
+  _assertHost(roomId, token);
+  _updateById_(SHEET_ROOMS, roomId, { allowNewTeams: allow ? 'true' : 'false' });
+  _logEvent(roomId, 'toggle_allow_teams', { allow });
+  return { ok: true };
+}
+function apiFinishRoom(roomId, token) {
+  _assertHost(roomId, token);
+  _updateById_(SHEET_ROOMS, roomId, { status: 'closed' });
+  _logEvent(roomId, 'finish_room', {});
+  return { ok: true };
+}
+
+// ======= API: TEAMS =======
+function apiJoinTeam(roomId, teamName, avatar) {
+  const room = apiGetRoomPublic(roomId);
+  if (room.status !== 'open') throw new Error(I18N.es.roomClosed);
+  if (!room.allowNewTeams) throw new Error('No se admiten nuevos equipos en este momento.');
+  if (!teamName || String(teamName).trim().length < 2) throw new Error('Nombre de equipo inválido.');
+
+  // Verifica duplicado
+  const exists = _query_(SHEET_TEAMS, t => t.roomId === roomId && (t.teamName || '').toLowerCase() === teamName.toLowerCase());
+  if (exists.length) throw new Error('Ya existe un equipo con ese nombre.');
+
+  const teamId = _uuid();
+  _append_(SHEET_TEAMS, {
+    id: teamId,
+    roomId,
+    teamName: teamName.trim(),
+    avatar: avatar || '',
+    createdAt: _nowISO(),
+    wins: 0,
+    losses: 0,
+    streak: 0,
+    badgesJson: JSON.stringify([])
+  });
+  _logEvent(roomId, 'join_team', { teamId, teamName });
+  return { teamId };
+}
+function _updateTeamStats_(roomId, teamId, win) {
+  const sh = _sheet(SHEET_TEAMS);
+  const data = sh.getDataRange().getValues();
+  const headers = data.shift();
+  const idx = {
+    id: headers.indexOf('id'),
+    wins: headers.indexOf('wins'),
+    losses: headers.indexOf('losses'),
+    streak: headers.indexOf('streak'),
+    badgesJson: headers.indexOf('badgesJson')
+  };
+  for (let r=0; r<data.length; r++) {
+    if (data[r][idx.id] === teamId) {
+      let wins = Number(data[r][idx.wins] || 0);
+      let losses = Number(data[r][idx.losses] || 0);
+      let streak = Number(data[r][idx.streak] || 0);
+      if (win) { wins++; streak = streak >= 0 ? streak + 1 : 1; }
+      else { losses++; streak = streak <= 0 ? streak - 1 : -1; }
+
+      data[r][idx.wins] = wins;
+      data[r][idx.losses] = losses;
+      data[r][idx.streak] = streak;
+
+      // Badges simples
+      let badges = [];
+      try { badges = JSON.parse(String(data[r][idx.badgesJson]||'[]')); } catch(e){}
+      if (win && streak === 3 && !badges.includes('Racha x3')) badges.push('Racha x3');
+      if (wins >= 5 && !badges.includes('Ganadores 5+')) badges.push('Ganadores 5+');
+      data[r][idx.badgesJson] = JSON.stringify(badges);
+
+      sh.getRange(r+2, 1, 1, headers.length).setValues([data[r]]);
+      return;
+    }
   }
-})();
-</script>
-</body>
-</html>
+}
+
+// ======= API: JUEGO =======
+// mode: 'A' (3 puertas directo) | 'B' (Monty Hall)
+// doorsCount: 3..6
+function apiStartPlay(roomId, teamId, mode, doorsCount) {
+  const room = apiGetRoomPublic(roomId);
+  if (room.status !== 'open') throw new Error(I18N.es.roomClosed);
+
+  const dCount = Math.max(3, Math.min(Number(doorsCount || room.doorsCount), 6));
+  const playId = _uuid();
+  const prizeDoor = Math.floor(Math.random() * dCount); // 0..dCount-1
+
+  _append_(SHEET_PLAYS, {
+    id: playId,
+    roomId,
+    teamId,
+    mode,
+    doorsCount: dCount,
+    prizeDoor,
+    initialChoice: '',
+    revealedDoorsJson: '[]',
+    finalDecision: '',
+    result: '',
+    durationMs: 0,
+    createdAt: _nowISO()
+  });
+  _logEvent(roomId, 'start_play', { teamId, playId, mode, dCount });
+  return { playId, doorsCount: dCount, startedAt: Date.now() };
+}
+
+// Elección inicial (para ambos modos)
+function apiInitialChoice(roomId, teamId, playId, choiceIdx) {
+  const play = _findById_(SHEET_PLAYS, playId);
+  if (!play || play.roomId !== roomId || play.teamId !== teamId) throw new Error('Play inválida.');
+  if (String(play.initialChoice) !== '') throw new Error('Ya elegiste.');
+
+  _updateById_(SHEET_PLAYS, playId, { initialChoice: Number(choiceIdx) });
+  _logEvent(roomId, 'initial_choice', { teamId, playId, choiceIdx });
+
+  return { ok: true };
+}
+
+// Revela cabras (para modo B y generalización: quedan SOLO 2 puertas cerradas)
+function apiRevealGoats(roomId, teamId, playId) {
+  const play = _findById_(SHEET_PLAYS, playId);
+  if (!play || play.roomId !== roomId || play.teamId !== teamId) throw new Error('Play inválida.');
+  if (play.mode !== 'B') throw new Error('Solo aplica a modo Monty.');
+  const dCount = Number(play.doorsCount);
+  const prize = Number(play.prizeDoor);
+  const initial = Number(play.initialChoice);
+
+  if (isNaN(initial)) throw new Error('Primero debes elegir una puerta.');
+
+  // Construye conjunto de puertas a abrir: todas las cabras excepto 1 que dejamos cerrada
+  const all = Array.from({length: dCount}, (_,i)=>i);
+  const goats = all.filter(i => i !== prize);
+  let toKeepClosed = null;
+
+  if (initial === prize) {
+    // Si la inicial es el premio, debemos DEJAR UNA cabra cerrada (random) y abrir el resto.
+    const cabras = goats.slice(); // todas son cabras
+    toKeepClosed = cabras[Math.floor(Math.random()*cabras.length)];
+  } else {
+    // Si la inicial NO es el premio, dejamos cerrada la de premio y la inicial.
+    toKeepClosed = prize;
+  }
+  // Revealed = todas menos {initial, toKeepClosed}
+  const revealed = all.filter(i => i !== initial && i !== toKeepClosed);
+
+  _updateById_(SHEET_PLAYS, playId, { revealedDoorsJson: JSON.stringify(revealed) });
+  _logEvent(roomId, 'reveal_goats', { teamId, playId, revealed });
+  return { revealed };
+}
+
+// Decisión final
+// decision: 'keep' | 'switch' | '3doors' (modo A)
+function apiFinalDecision(roomId, teamId, playId, decision, startedAt) {
+  const play = _findById_(SHEET_PLAYS, playId);
+  if (!play || play.roomId !== roomId || play.teamId !== teamId) throw new Error('Play inválida.');
+  if (String(play.result)) throw new Error('Play cerrada.');
+
+  const room = apiGetRoomPublic(roomId);
+  const timeout = Number(room.timeoutSec || 0);
+  const nowMs = Date.now();
+  const dur = Math.max(0, nowMs - Number(startedAt || nowMs));
+
+  // Timeout opcional
+  if (timeout > 0 && dur > timeout*1000) {
+    decision = (play.mode === 'B') ? 'keep' : '3doors'; // por defecto
+  }
+
+  const dCount = Number(play.doorsCount);
+  const prize = Number(play.prizeDoor);
+  const initial = Number(play.initialChoice);
+  let finalChoice = initial;
+
+  if (play.mode === 'A') {
+    // Modo 3 puertas directo: la initialChoice define resultado
+    decision = '3doors';
+  } else {
+    // Modo B: switch => elige la otra puerta cerrada
+    const revealed = JSON.parse(play.revealedDoorsJson || '[]');
+    if (decision === 'switch') {
+      // la única puerta no revelada y distinta a initial
+      const all = Array.from({length:dCount}, (_,i)=>i);
+      const closed = all.filter(i => !revealed.includes(i));
+      finalChoice = closed.find(i => i !== initial);
+    } else {
+      finalChoice = initial;
+    }
+  }
+
+  const win = (finalChoice === prize);
+  const result = win ? 'win' : 'lose';
+
+  _updateById_(SHEET_PLAYS, playId, {
+    finalDecision: decision,
+    result,
+    durationMs: dur
+  });
+  _updateTeamStats_(roomId, teamId, win);
+  _logEvent(roomId, 'final_decision', { teamId, playId, decision, finalChoice, result, dur });
+
+  return { result, prizeDoor: prize, finalChoice, durationMs: dur };
+}
+
+// ======= API: DASHBOARD / ESTADÍSTICAS =======
+function apiDashboard(roomId, token) {
+  _assertHost(roomId, token);
+
+  const room = apiGetRoomPublic(roomId);
+  const teams = _query_(SHEET_TEAMS, t => t.roomId === roomId);
+  const plays = _query_(SHEET_PLAYS, p => p.roomId === roomId);
+
+  // Totales por estrategia
+  let A_total=0, A_win=0;
+  let B_keep_total=0, B_keep_win=0;
+  let B_switch_total=0, B_switch_win=0;
+
+  plays.forEach(p => {
+    if (p.mode === 'A') {
+      A_total++;
+      if (p.result === 'win') A_win++;
+    } else {
+      if (p.finalDecision === 'keep') {
+        B_keep_total++;
+        if (p.result === 'win') B_keep_win++;
+      } else if (p.finalDecision === 'switch') {
+        B_switch_total++;
+        if (p.result === 'win') B_switch_win++;
+      }
+    }
+  });
+
+  // Ranking simple
+  const rank = teams
+    .map(t => ({ teamName: t.teamName, wins:Number(t.wins||0), losses:Number(t.losses||0), streak:Number(t.streak||0), badges: safeParse(t.badgesJson,[]) }))
+    .sort((a,b)=> b.wins - a.wins || a.losses - b.losses || b.streak - a.streak);
+
+  // Últimos eventos para anuncios
+  const events = _query_(SHEET_EVENTS, e => e.roomId === roomId).slice(-20);
+
+  return {
+    room,
+    totals: {
+      A: { total: A_total, win: A_win },
+      B_keep: { total: B_keep_total, win: B_keep_win },
+      B_switch: { total: B_switch_total, win: B_switch_win }
+    },
+    teams: rank,
+    playsRecent: plays.slice(-30).reverse(),
+    events
+  };
+}
+function safeParse(s, fallback){ try{ return JSON.parse(String(s||'')); } catch(e){ return fallback; } }
+
+// ======= API: ANUNCIOS / MENSAJES =======
+function apiBroadcast(roomId, token, message) {
+  _assertHost(roomId, token);
+  if (!message || String(message).trim().length < 1) throw new Error('Mensaje vacío.');
+  _logEvent(roomId, 'broadcast', { message });
+  return { ok: true };
+}
+
+// ======= API: REPORTE (Google Doc) =======
+function apiGenerateReport(roomId, token) {
+  _assertHost(roomId, token);
+  const room = _findById_(SHEET_ROOMS, roomId);
+  if (!room) throw new Error('Sala no encontrada.');
+
+  const teams = _query_(SHEET_TEAMS, t => t.roomId === roomId);
+  const plays = _query_(SHEET_PLAYS, p => p.roomId === roomId);
+
+  const doc = DocumentApp.create(`Reporte Monty Hall - ${room.orgName} - ${room.workshopName}`);
+  const body = doc.getBody();
+  body.appendParagraph('Simulador Monty Hall – Reporte de Sesión').setHeading(DocumentApp.ParagraphHeading.HEADING1);
+  body.appendParagraph(`${room.orgName} — ${room.workshopName}`).setHeading(DocumentApp.ParagraphHeading.HEADING2);
+  body.appendParagraph(`Fecha: ${room.dateISO}`);
+  body.appendParagraph(`Puertas: ${room.doorsCount} | Rondas: ${room.rounds || 'libre'} | Modos: ${room.modes}`);
+
+  // Totales
+  const dash = apiDashboard(roomId, room.tokenHost);
+  const t = dash.totals;
+  body.appendParagraph('\nResultados Globales').setHeading(DocumentApp.ParagraphHeading.HEADING2);
+  body.appendParagraph(`Modo A (3 puertas): ${t.A.win}/${t.A.total} (${pct(t.A.win,t.A.total)})`);
+  body.appendParagraph(`Modo B – Mantener: ${t.B_keep.win}/${t.B_keep.total} (${pct(t.B_keep.win,t.B_keep.total)})`);
+  body.appendParagraph(`Modo B – Cambiar: ${t.B_switch.win}/${t.B_switch.total} (${pct(t.B_switch.win,t.B_switch.total)})`);
+
+  // Ranking
+  body.appendParagraph('\nRanking de Equipos').setHeading(DocumentApp.ParagraphHeading.HEADING2);
+  dash.teams.forEach((tm,i)=>{
+    body.appendParagraph(`${i+1}. ${tm.teamName} — Ganadas: ${tm.wins}, Perdidas: ${tm.losses}, Racha: ${tm.streak} ${tm.badges.length?(' | Badges: '+tm.badges.join(', ')) : ''}`);
+  });
+
+  // Cierre pedagógico
+  body.appendParagraph('\nCierre Pedagógico').setHeading(DocumentApp.ParagraphHeading.HEADING2);
+  body.appendParagraph('Aunque al final parecen quedar 2 puertas (50/50), la probabilidad no se reinicia: mantener conserva ≈1/3 y cambiar toma ≈2/3. Por eso, cambiar duplica la chance de ganar.');
+
+  const url = doc.getUrl();
+  _logEvent(roomId, 'report_generated', { url });
+  return { url };
+}
+function pct(a,b){ return (b>0 ? (Math.round((a/b)*1000)/10)+'%' : '0%'); }
+
+// ======= HELPERS =======
+function _assertHost(roomId, token) {
+  const room = _findById_(SHEET_ROOMS, roomId);
+  if (!room) throw new Error('Sala no encontrada.');
+  if (!_verifyToken(roomId, token)) throw new Error('Token inválido.');
+}
+function _logEvent(roomId, type, payload) {
+  _append_(SHEET_EVENTS, {
+    id: _uuid(),
+    roomId,
+    type,
+    payload: JSON.stringify(payload || {}),
+    createdAt: _nowISO()
+  });
+}
