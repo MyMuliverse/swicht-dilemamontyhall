@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Simulador Monty Hall v4.0</title>
+  <title>Simulador Monty Hall v4.0 Plus</title>
   <style>
     body { font-family: Arial, sans-serif; background:#f4f4f9; margin:0; padding:20px; }
     h1,h2 { color:#333; }
@@ -50,7 +50,7 @@
 </div>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbxNNktllDxp-k8ctlhObUDvmHKOAKpxpiQWQE6Bem77_bKI08m23BeRH5v73Tn9XZg/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbxb8e7rPWXjLVwW7uqc01Qrbdn-GAdkqhVowJNMEwqy-dvumjhLQ6NFOvnDjL-87kg/exec";
 
 let currentRoom = null;
 let currentTeam = null;
@@ -61,12 +61,10 @@ async function createRoom() {
   const orgName = document.getElementById("orgName").value;
   const workshopName = document.getElementById("workshopName").value;
 
-  const res = await fetch(API_URL+"?action=createRoom", {
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({action:"createRoom", orgName, workshopName})
-  });
+  const url = `${API_URL}?action=createRoom&orgName=${encodeURIComponent(orgName)}&workshopName=${encodeURIComponent(workshopName)}`;
+  const res = await fetch(url);
   const data = await res.json();
+
   if(data.error) { alert(data.error); return; }
   currentRoom = data.roomId;
   document.getElementById("admin-result").innerHTML = `
@@ -79,12 +77,10 @@ async function joinTeam() {
   const roomId = document.getElementById("roomId").value;
   const teamName = document.getElementById("teamName").value;
 
-  const res = await fetch(API_URL+"?action=joinTeam", {
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({action:"joinTeam", roomId, teamName})
-  });
+  const url = `${API_URL}?action=joinTeam&roomId=${encodeURIComponent(roomId)}&teamName=${encodeURIComponent(teamName)}`;
+  const res = await fetch(url);
   const data = await res.json();
+
   if(data.error) { alert(data.error); return; }
   currentRoom = roomId;
   currentTeam = data.teamId;
@@ -94,12 +90,10 @@ async function joinTeam() {
 
 // Iniciar jugada
 async function startPlay() {
-  const res = await fetch(API_URL+"?action=startPlay", {
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({action:"startPlay", roomId:currentRoom, teamId:currentTeam, mode:"A"})
-  });
+  const url = `${API_URL}?action=startPlay&roomId=${encodeURIComponent(currentRoom)}&teamId=${encodeURIComponent(currentTeam)}&mode=A`;
+  const res = await fetch(url);
   const data = await res.json();
+
   if(data.error) { alert(data.error); return; }
   currentPlay = data.playId;
   renderDoors(data.doorsCount);
@@ -120,23 +114,16 @@ function renderDoors(n) {
 
 // Elección inicial
 async function makeChoice(choice) {
-  await fetch(API_URL+"?action=choice", {
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({action:"choice", roomId:currentRoom, teamId:currentTeam, playId:currentPlay, choice})
-  });
+  const url = `${API_URL}?action=choice&roomId=${encodeURIComponent(currentRoom)}&teamId=${encodeURIComponent(currentTeam)}&playId=${encodeURIComponent(currentPlay)}&choice=${choice}`;
+  await fetch(url);
 
-  // Decisión final (en este ejemplo directa sin revelación intermedia)
-  finalDecision(choice);
+  finalDecision(choice); // directo en este demo
 }
 
 // Final
 async function finalDecision(choice) {
-  const res = await fetch(API_URL+"?action=final", {
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({action:"final", roomId:currentRoom, teamId:currentTeam, playId:currentPlay, finalChoice:choice})
-  });
+  const url = `${API_URL}?action=final&roomId=${encodeURIComponent(currentRoom)}&teamId=${encodeURIComponent(currentTeam)}&playId=${encodeURIComponent(currentPlay)}&finalChoice=${choice}`;
+  const res = await fetch(url);
   const data = await res.json();
 
   const doors = document.querySelectorAll(".door");
