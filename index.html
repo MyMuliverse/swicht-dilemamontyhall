@@ -2,25 +2,118 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Tester Monty Hall API</title>
+  <title>Simulador Monty Hall v4.0 Plus</title>
+  <style>
+    body { font-family: Arial, sans-serif; background:#f4f4f9; padding:30px; }
+    .container { max-width:600px; margin:auto; background:#fff; padding:20px; border-radius:10px; box-shadow:0 2px 6px rgba(0,0,0,0.2);}
+    h1 { text-align:center; color:#333; }
+    h2 { margin-top:30px; color:#444; }
+    label { display:block; margin-top:10px; }
+    input { width:100%; padding:10px; margin-top:5px; border:1px solid #ccc; border-radius:5px; }
+    button { margin-top:15px; padding:12px; width:100%; background:#007bff; color:#fff; border:none; border-radius:5px; font-size:16px; cursor:pointer;}
+    button:hover { background:#0056b3; }
+    #admin-result, #team-result, #game-area { margin-top:20px; padding:10px; background:#eef; border-radius:5px; }
+    .doors { display:flex; justify-content:space-around; margin-top:20px; }
+    .door { width:100px; height:150px; background:#ccc; display:flex; align-items:center; justify-content:center; cursor:pointer; font-weight:bold; border-radius:8px; }
+  </style>
 </head>
 <body>
-  <h1>Tester de conexión</h1>
-  <button onclick="testAPI()">Probar createRoom</button>
-  <pre id="out"></pre>
+<div class="container">
+  <h1>Simulador Monty Hall v4.0 Plus</h1>
+
+  <h2>Crear Sala</h2>
+  <label>Organización:</label>
+  <input id="orgName" placeholder="Ej: Universidad Central del Paraguay">
+  <label>Workshop:</label>
+  <input id="workshopName" placeholder="Ej: MBA 2">
+  <button onclick="createRoom()">Crear Sala</button>
+  <div id="admin-result"></div>
+
+  <h2>Unirse como Equipo</h2>
+  <label>ID de Sala:</label>
+  <input id="roomId" placeholder="Ej: 12345">
+  <label>Nombre de equipo:</label>
+  <input id="teamName" placeholder="Ej: Equipo A">
+  <button onclick="joinTeam()">Unirse</button>
+  <div id="team-result"></div>
+
+  <h2>Juego</h2>
+  <div id="game-area"></div>
+</div>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbxb8e7rPWXjLVwW7uqc01Qrbdn-GAdkqhVowJNMEwqy-dvumjhLQ6NFOvnDjL-87kg/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbxyR9-NLlUrw8vQtJT-HQUd8wDc0dOkxRGGnqedpgZn25r96H-Ytu09v4cQVKuGELE/exec";
 
-async function testAPI() {
-  const url = `${API_URL}?action=createRoom&orgName=TestOrg&workshopName=TestWS`;
-  try {
-    const res = await fetch(url);
-    const data = await res.json();
-    document.getElementById("out").textContent = JSON.stringify(data,null,2);
-  } catch(err) {
-    document.getElementById("out").textContent = "ERROR: "+err;
-  }
+// ===== Función auxiliar JSONP =====
+function callAPI(params, cb) {
+  const callbackName = "cb_" + Math.random().toString(36).substr(2,9);
+  window[callbackName] = function(data) {
+    cb(data);
+    delete window[callbackName];
+    script.remove();
+  };
+  const qs = new URLSearchParams({...params, callback:callbackName});
+  const script = document.createElement("script");
+  script.src = API_URL + "?" + qs.toString();
+  document.body.appendChild(script);
+}
+
+// ===== Crear sala (Admin) =====
+function createRoom() {
+  const orgName = document.getElementById("orgName").value;
+  const workshopName = document.getElementById("workshopName").value;
+  callAPI({ action:"createRoom", orgName, workshopName }, data => {
+    if(data.error) {
+      alert("Error: " + data.error);
+    } else {
+      document.getElementById("admin-result").innerHTML =
+        `<p><b>ID Sala:</b> ${data.roomId}</p>`;
+    }
+  });
+}
+
+// ===== Unirse como equipo =====
+function joinTeam() {
+  const roomId = document.getElementById("roomId").value;
+  const teamName = document.getElementById("teamName").value;
+  callAPI({ action:"joinTeam", roomId, teamName }, data => {
+    if(data.error) {
+      alert("Error: " + data.error);
+    } else {
+      document.getElementById("team-result").innerHTML =
+        `<p>Equipo <b>${teamName}</b> unido a sala ${roomId}</p>`;
+      renderGame(roomId, teamName);
+    }
+  });
+}
+
+// ===== Render del juego =====
+function renderGame(roomId, teamName) {
+  const gameArea = document.getElementById("game-area");
+  gameArea.innerHTML = "<h3>Elegí una puerta</h3>";
+  const doorsDiv = document.createElement("div");
+  doorsDiv.className = "doors";
+
+  [1,2,3].forEach(num => {
+    const door = document.createElement("div");
+    door.className = "door";
+    door.innerText = "Puerta " + num;
+    door.onclick = () => makeChoice(roomId, teamName, num);
+    doorsDiv.appendChild(door);
+  });
+
+  gameArea.appendChild(doorsDiv);
+}
+
+// ===== Elegir puerta =====
+function makeChoice(roomId, teamName, choice) {
+  callAPI({ action:"choice", roomId, teamName, choice }, data => {
+    if(data.error) {
+      alert("Error: " + data.error);
+    } else {
+      alert("Elección registrada: Puerta " + choice);
+    }
+  });
 }
 </script>
 </body>
