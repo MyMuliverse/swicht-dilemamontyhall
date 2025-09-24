@@ -2,215 +2,151 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Monty Hall v4.0 Plus</title>
+  <title>Simulador Monty Hall v4.0</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; background: #f4f4f9; }
-    h1,h2,h3 { color: #333; }
-    .container { max-width: 900px; margin:auto; background:#fff; padding:20px; border-radius:10px; box-shadow:0 0 15px rgba(0,0,0,0.1);}
-    input,button,select { margin:5px 0; padding:10px; border-radius:5px; border:1px solid #ccc; width:100%; }
-    button { background:#007bff; color:#fff; cursor:pointer; }
+    body { font-family: Arial, sans-serif; background:#f4f4f9; margin:0; padding:20px; }
+    h1,h2 { color:#333; }
+    .container { max-width:800px; margin:auto; background:#fff; padding:20px; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,0.1); }
+    input,button { padding:10px; margin:5px 0; width:100%; border-radius:5px; border:1px solid #ccc; }
+    button { background:#007bff; color:#fff; border:none; cursor:pointer; }
     button:hover { background:#0056b3; }
-    .hidden { display:none; }
     .doors { display:flex; justify-content:center; gap:15px; margin:20px 0; }
-    .door { width:100px; height:150px; background:#d2b48c; border:3px solid #654321; border-radius:5px; cursor:pointer;
-      display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:20px; }
-    .door.open { background:#eee; }
-    .door.goat { background:#ccc; }
-    .door.prize { background:#ffd700; }
-    .log { background:#f8f9fa; padding:10px; border-radius:5px; margin-top:10px; font-family:monospace; white-space:pre-wrap; }
+    .door { width:100px; height:150px; background:#d2b48c; border:3px solid #654321;
+      display:flex; align-items:center; justify-content:center; font-size:24px; font-weight:bold; cursor:pointer; }
+    .goat { background:#ccc !important; }
+    .prize { background:#ffd700 !important; }
   </style>
 </head>
 <body>
 <div class="container">
-  <h1>Simulador Monty Hall v4.0 Plus</h1>
+  <h1>Simulador Monty Hall</h1>
 
-  <!-- ADMIN -->
-  <div id="view-admin" class="hidden">
-    <h2>Crear nueva sala</h2>
-    <label>Organización:</label>
-    <input id="orgName" placeholder="Ej: Universidad Central del Paraguay">
-    <label>Taller / Workshop:</label>
-    <input id="workshopName" placeholder="Ej: Workshop MBA 2">
-    <button onclick="createRoom()">Crear Sala</button>
+  <!-- Admin -->
+  <div id="admin">
+    <h2>Crear Sala</h2>
+    <input id="orgName" placeholder="Organización">
+    <input id="workshopName" placeholder="Workshop">
+    <button onclick="createRoom()">Crear</button>
     <div id="admin-result"></div>
   </div>
 
-  <!-- PLAYER -->
-  <div id="view-play" class="hidden">
-    <h2>Jugador / Equipo</h2>
-    <div id="join-area">
-      <label>Nombre del equipo:</label>
-      <input id="teamName" placeholder="Ej: Equipo Alfa">
-      <button onclick="joinTeam()">Unirse</button>
-    </div>
-    <div id="game-area" class="hidden">
+  <hr>
+
+  <!-- Player -->
+  <div id="player">
+    <h2>Unirse como Equipo</h2>
+    <input id="roomId" placeholder="ID de Sala">
+    <input id="teamName" placeholder="Nombre de equipo">
+    <button onclick="joinTeam()">Unirse</button>
+    <div id="join-result"></div>
+
+    <div id="game-area" style="display:none;">
       <h3>Juego</h3>
-      <button onclick="startGame('A')">Modo A: Elegir entre 3 puertas</button>
-      <button onclick="startGame('B')">Modo B: Monty revela cabras</button>
-      <div id="doors-container" class="doors"></div>
-      <div id="decision-area" class="hidden"></div>
-      <div id="result-area"></div>
+      <button onclick="startPlay()">Comenzar</button>
+      <div class="doors" id="doors"></div>
+      <div id="result"></div>
     </div>
-  </div>
-
-  <!-- HOST -->
-  <div id="view-host" class="hidden">
-    <h2>Dashboard del Instructor</h2>
-    <button onclick="refreshDashboard()">Actualizar</button>
-    <div id="host-result"></div>
-  </div>
-
-  <!-- SCREEN -->
-  <div id="view-screen" class="hidden">
-    <h2>Pantalla Pública</h2>
-    <button onclick="refreshScreen()">Actualizar</button>
-    <div id="screen-result"></div>
   </div>
 </div>
 
 <script>
-  // Parámetros de URL
-  const urlParams = new URLSearchParams(window.location.search);
-  const view   = urlParams.get("view") || "admin";
-  const roomId = urlParams.get("roomId") || "";
-  const token  = urlParams.get("token") || "";
-  let teamId = null;
-  let playId = null;
-  let startedAt = null;
+const API_URL = "https://script.google.com/macros/s/AKfycbxNNktllDxp-k8ctlhObUDvmHKOAKpxpiQWQE6Bem77_bKI08m23BeRH5v73Tn9XZg/exec";
 
-  document.getElementById("view-" + view).classList.remove("hidden");
+let currentRoom = null;
+let currentTeam = null;
+let currentPlay = null;
 
-  // Sonidos
-  const sndCar   = new Audio("Car.wav");
-  const sndGoat  = new Audio("Goat.wav");
-  const sndWin   = new Audio("Win.wav");
-  const sndLose  = new Audio("Loses.wav");
+// === Admin ===
+async function createRoom() {
+  const orgName = document.getElementById("orgName").value;
+  const workshopName = document.getElementById("workshopName").value;
 
-  // === API helper ===
-  function googleApi(name, payload, cb) {
-    google.script.run.withSuccessHandler(cb).withFailureHandler(err => {
-      alert("Error: " + err.message);
-      console.error(err);
-    })[name](...(Array.isArray(payload)?payload:[payload]));
+  const res = await fetch(API_URL+"?action=createRoom", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({action:"createRoom", orgName, workshopName})
+  });
+  const data = await res.json();
+  if(data.error) { alert(data.error); return; }
+  currentRoom = data.roomId;
+  document.getElementById("admin-result").innerHTML = `
+    <p><b>ID Sala:</b> ${data.roomId}</p>
+  `;
+}
+
+// === Player ===
+async function joinTeam() {
+  const roomId = document.getElementById("roomId").value;
+  const teamName = document.getElementById("teamName").value;
+
+  const res = await fetch(API_URL+"?action=joinTeam", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({action:"joinTeam", roomId, teamName})
+  });
+  const data = await res.json();
+  if(data.error) { alert(data.error); return; }
+  currentRoom = roomId;
+  currentTeam = data.teamId;
+  document.getElementById("join-result").innerHTML = `<p>Equipo unido. ID: ${data.teamId}</p>`;
+  document.getElementById("game-area").style.display = "block";
+}
+
+// Iniciar jugada
+async function startPlay() {
+  const res = await fetch(API_URL+"?action=startPlay", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({action:"startPlay", roomId:currentRoom, teamId:currentTeam, mode:"A"})
+  });
+  const data = await res.json();
+  if(data.error) { alert(data.error); return; }
+  currentPlay = data.playId;
+  renderDoors(data.doorsCount);
+}
+
+// Render puertas
+function renderDoors(n) {
+  const container = document.getElementById("doors");
+  container.innerHTML = "";
+  for(let i=0;i<n;i++){
+    const d=document.createElement("div");
+    d.className="door";
+    d.textContent=i+1;
+    d.onclick=()=>makeChoice(i);
+    container.appendChild(d);
   }
+}
 
-  // === ADMIN ===
-  function createRoom() {
-    const orgName = document.getElementById("orgName").value;
-    const workshopName = document.getElementById("workshopName").value;
-    googleApi("apiCreateRoom", { orgName, workshopName }, res => {
-      document.getElementById("admin-result").innerHTML = `
-        <p><b>ID de Sala:</b> ${res.roomId}</p>
-        <p><b>Token Host:</b> ${res.tokenHost}</p>
-        <p>Link Jugadores:<br><pre>${window.location.origin + window.location.pathname}?view=play&roomId=${res.roomId}</pre></p>
-        <p>Link Host:<br><pre>${window.location.origin + window.location.pathname}?view=host&roomId=${res.roomId}&token=${res.tokenHost}</pre></p>
-        <p>Link Pantalla Pública:<br><pre>${window.location.origin + window.location.pathname}?view=screen&roomId=${res.roomId}</pre></p>
-      `;
-    });
-  }
+// Elección inicial
+async function makeChoice(choice) {
+  await fetch(API_URL+"?action=choice", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({action:"choice", roomId:currentRoom, teamId:currentTeam, playId:currentPlay, choice})
+  });
 
-  // === PLAYER ===
-  function joinTeam() {
-    const teamName = document.getElementById("teamName").value;
-    googleApi("apiJoinTeam", [roomId, teamName, ""], res => {
-      teamId = res.teamId;
-      document.getElementById("join-area").classList.add("hidden");
-      document.getElementById("game-area").classList.remove("hidden");
-      document.getElementById("result-area").innerHTML = `<p>Equipo unido con ID: ${teamId}</p>`;
-    });
-  }
+  // Decisión final (en este ejemplo directa sin revelación intermedia)
+  finalDecision(choice);
+}
 
-  function startGame(mode) {
-    googleApi("apiStartPlay", [roomId, teamId, mode, 3], res => {
-      playId = res.playId;
-      startedAt = res.startedAt;
-      renderDoors(res.doorsCount);
-    });
-  }
+// Final
+async function finalDecision(choice) {
+  const res = await fetch(API_URL+"?action=final", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({action:"final", roomId:currentRoom, teamId:currentTeam, playId:currentPlay, finalChoice:choice})
+  });
+  const data = await res.json();
 
-  function renderDoors(count) {
-    const container = document.getElementById("doors-container");
-    container.innerHTML = "";
-    for (let i=0; i<count; i++) {
-      const d = document.createElement("div");
-      d.className = "door";
-      d.innerText = i+1;
-      d.onclick = () => initialChoice(i);
-      container.appendChild(d);
-    }
-  }
+  const doors = document.querySelectorAll(".door");
+  doors.forEach((d,idx)=>{
+    if(idx==data.prize) { d.classList.add("prize"); d.textContent="🏆"; }
+    else { d.classList.add("goat"); d.textContent="🐐"; }
+  });
 
-  function initialChoice(choiceIdx) {
-    googleApi("apiInitialChoice", [roomId, teamId, playId, choiceIdx], res => {
-      googleApi("apiRevealGoats", [roomId, teamId, playId], res2 => {
-        revealDoors(res2.revealed, choiceIdx);
-        askDecision();
-      });
-    });
-  }
-
-  function revealDoors(revealed, initial) {
-    const doors = document.querySelectorAll(".door");
-    doors.forEach((d,idx)=>{
-      if (revealed.includes(idx)) {
-        d.classList.add("goat");
-        d.innerText="🐐";
-        sndGoat.play();
-      }
-    });
-    doors[initial].style.border="3px solid red";
-  }
-
-  function askDecision() {
-    const area = document.getElementById("decision-area");
-    area.classList.remove("hidden");
-    area.innerHTML = `
-      <button onclick="finalDecision('keep')">Mantener elección</button>
-      <button onclick="finalDecision('switch')">Cambiar elección</button>
-    `;
-  }
-
-  function finalDecision(decision) {
-    googleApi("apiFinalDecision", [roomId, teamId, playId, decision, startedAt], res => {
-      const doors = document.querySelectorAll(".door");
-      doors.forEach((d,idx)=>{
-        d.classList.add(idx==res.prizeDoor ? "prize":"goat");
-        d.innerText = idx==res.prizeDoor ? "🏆":"🐐";
-      });
-      document.getElementById("decision-area").classList.add("hidden");
-      document.getElementById("result-area").innerHTML = `<h3>Resultado: ${res.result.toUpperCase()} (Puerta ganadora: ${res.prizeDoor+1})</h3>`;
-      if(res.result==="win"){ sndCar.play(); sndWin.play(); }
-      else { sndGoat.play(); sndLose.play(); }
-    });
-  }
-
-  // === HOST ===
-  function refreshDashboard() {
-    googleApi("apiDashboard", [roomId, token], res => {
-      let html = `<h3>${res.room.orgName} - ${res.room.workshopName}</h3>`;
-      html += "<h4>Totales:</h4><pre>"+JSON.stringify(res.totals,null,2)+"</pre>";
-      html += "<h4>Ranking:</h4><ul>";
-      res.teams.forEach(t => {
-        html += `<li>${t.teamName} — Wins: ${t.wins}, Losses: ${t.losses}, Streak: ${t.streak}</li>`;
-      });
-      html += "</ul>";
-      document.getElementById("host-result").innerHTML = html;
-    });
-  }
-
-  // === SCREEN ===
-  function refreshScreen() {
-    googleApi("apiPublicBoard", roomId, res => {
-      let html = `<h3>${res.room.orgName} - ${res.room.workshopName}</h3>`;
-      html += "<h4>Totales:</h4><pre>"+JSON.stringify(res.totals,null,2)+"</pre>";
-      html += "<h4>Ranking:</h4><ul>";
-      res.teams.forEach(t => {
-        html += `<li>${t.teamName} — Wins: ${t.wins}, Losses: ${t.losses}, Streak: ${t.streak}</li>`;
-      });
-      html += "</ul>";
-      document.getElementById("screen-result").innerHTML = html;
-    });
-  }
+  document.getElementById("result").innerHTML = `<h3>Resultado: ${data.result.toUpperCase()}</h3>`;
+}
 </script>
 </body>
 </html>
