@@ -2,137 +2,25 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Simulador Monty Hall v4.0 Plus</title>
-  <style>
-    body { font-family: Arial, sans-serif; background:#f4f4f9; margin:0; padding:20px; }
-    h1,h2 { color:#333; }
-    .container { max-width:800px; margin:auto; background:#fff; padding:20px; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,0.1); }
-    input,button { padding:10px; margin:5px 0; width:100%; border-radius:5px; border:1px solid #ccc; }
-    button { background:#007bff; color:#fff; border:none; cursor:pointer; }
-    button:hover { background:#0056b3; }
-    .doors { display:flex; justify-content:center; gap:15px; margin:20px 0; }
-    .door { width:100px; height:150px; background:#d2b48c; border:3px solid #654321;
-      display:flex; align-items:center; justify-content:center; font-size:24px; font-weight:bold; cursor:pointer; }
-    .goat { background:#ccc !important; }
-    .prize { background:#ffd700 !important; }
-  </style>
+  <title>Tester Monty Hall API</title>
 </head>
 <body>
-<div class="container">
-  <h1>Simulador Monty Hall</h1>
-
-  <!-- Admin -->
-  <div id="admin">
-    <h2>Crear Sala</h2>
-    <input id="orgName" placeholder="Organización">
-    <input id="workshopName" placeholder="Workshop">
-    <button onclick="createRoom()">Crear</button>
-    <div id="admin-result"></div>
-  </div>
-
-  <hr>
-
-  <!-- Player -->
-  <div id="player">
-    <h2>Unirse como Equipo</h2>
-    <input id="roomId" placeholder="ID de Sala">
-    <input id="teamName" placeholder="Nombre de equipo">
-    <button onclick="joinTeam()">Unirse</button>
-    <div id="join-result"></div>
-
-    <div id="game-area" style="display:none;">
-      <h3>Juego</h3>
-      <button onclick="startPlay()">Comenzar</button>
-      <div class="doors" id="doors"></div>
-      <div id="result"></div>
-    </div>
-  </div>
-</div>
+  <h1>Tester de conexión</h1>
+  <button onclick="testAPI()">Probar createRoom</button>
+  <pre id="out"></pre>
 
 <script>
 const API_URL = "https://script.google.com/macros/s/AKfycbxb8e7rPWXjLVwW7uqc01Qrbdn-GAdkqhVowJNMEwqy-dvumjhLQ6NFOvnDjL-87kg/exec";
 
-let currentRoom = null;
-let currentTeam = null;
-let currentPlay = null;
-
-// === Admin ===
-async function createRoom() {
-  const orgName = document.getElementById("orgName").value;
-  const workshopName = document.getElementById("workshopName").value;
-
-  const url = `${API_URL}?action=createRoom&orgName=${encodeURIComponent(orgName)}&workshopName=${encodeURIComponent(workshopName)}`;
-  const res = await fetch(url);
-  const data = await res.json();
-
-  if(data.error) { alert(data.error); return; }
-  currentRoom = data.roomId;
-  document.getElementById("admin-result").innerHTML = `
-    <p><b>ID Sala:</b> ${data.roomId}</p>
-  `;
-}
-
-// === Player ===
-async function joinTeam() {
-  const roomId = document.getElementById("roomId").value;
-  const teamName = document.getElementById("teamName").value;
-
-  const url = `${API_URL}?action=joinTeam&roomId=${encodeURIComponent(roomId)}&teamName=${encodeURIComponent(teamName)}`;
-  const res = await fetch(url);
-  const data = await res.json();
-
-  if(data.error) { alert(data.error); return; }
-  currentRoom = roomId;
-  currentTeam = data.teamId;
-  document.getElementById("join-result").innerHTML = `<p>Equipo unido. ID: ${data.teamId}</p>`;
-  document.getElementById("game-area").style.display = "block";
-}
-
-// Iniciar jugada
-async function startPlay() {
-  const url = `${API_URL}?action=startPlay&roomId=${encodeURIComponent(currentRoom)}&teamId=${encodeURIComponent(currentTeam)}&mode=A`;
-  const res = await fetch(url);
-  const data = await res.json();
-
-  if(data.error) { alert(data.error); return; }
-  currentPlay = data.playId;
-  renderDoors(data.doorsCount);
-}
-
-// Render puertas
-function renderDoors(n) {
-  const container = document.getElementById("doors");
-  container.innerHTML = "";
-  for(let i=0;i<n;i++){
-    const d=document.createElement("div");
-    d.className="door";
-    d.textContent=i+1;
-    d.onclick=()=>makeChoice(i);
-    container.appendChild(d);
+async function testAPI() {
+  const url = `${API_URL}?action=createRoom&orgName=TestOrg&workshopName=TestWS`;
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    document.getElementById("out").textContent = JSON.stringify(data,null,2);
+  } catch(err) {
+    document.getElementById("out").textContent = "ERROR: "+err;
   }
-}
-
-// Elección inicial
-async function makeChoice(choice) {
-  const url = `${API_URL}?action=choice&roomId=${encodeURIComponent(currentRoom)}&teamId=${encodeURIComponent(currentTeam)}&playId=${encodeURIComponent(currentPlay)}&choice=${choice}`;
-  await fetch(url);
-
-  finalDecision(choice); // directo en este demo
-}
-
-// Final
-async function finalDecision(choice) {
-  const url = `${API_URL}?action=final&roomId=${encodeURIComponent(currentRoom)}&teamId=${encodeURIComponent(currentTeam)}&playId=${encodeURIComponent(currentPlay)}&finalChoice=${choice}`;
-  const res = await fetch(url);
-  const data = await res.json();
-
-  const doors = document.querySelectorAll(".door");
-  doors.forEach((d,idx)=>{
-    if(idx==data.prize) { d.classList.add("prize"); d.textContent="🏆"; }
-    else { d.classList.add("goat"); d.textContent="🐐"; }
-  });
-
-  document.getElementById("result").innerHTML = `<h3>Resultado: ${data.result.toUpperCase()}</h3>`;
 }
 </script>
 </body>
